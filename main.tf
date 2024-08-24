@@ -7,17 +7,6 @@ terraform {
   }
 }
 
-/*
-terraform {
-  required_providers {
-    http = {
-      source = "local/http"
-      version = "1.0.0"
-    }
-  }
-}
-*/
-
 provider "http" {}
 
 resource "http_request" "example" {
