@@ -16,22 +16,22 @@ provider "http" {
 }
 
 resource "http_request" "example1" {
-  path    = "/posts/1"
   method  = "GET"
+  path    = "/posts/1"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+}
+
+resource "http_request" "example2" {
+  method  = "GET"
+  path    = "/posts/1"
   headers = {
     "Content-Type" = "application/json"
   }
   request_body = jsonencode({
-    test = http_request.example2.response_body_json["id"]
+    test = http_request.example1.response_body_json["id"]
   })
-}
-
-resource "http_request" "example2" {
-  path    = "/posts/1"
-  method  = "GET"
-  headers = {
-    "Content-Type" = "application/json"
-  }
 }
 
 output "response_body" {

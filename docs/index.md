@@ -17,17 +17,17 @@ description: |-
 
 ### Required
 
-- `url` (String)
+- `url` (String) Base URL for HTTP requests
 
 ### Optional
 
-- `basic_auth` (Block List, Max: 1) (see [below for nested schema](#nestedblock--basic_auth))
-- `ignore_tls` (Boolean)
+- `basic_auth` (Attributes) Basic authentication credentials (see [below for nested schema](#nestedatt--basic_auth))
+- `ignore_tls` (Boolean) Ignore TLS certificate verification
 
-<a id="nestedblock--basic_auth"></a>
+<a id="nestedatt--basic_auth"></a>
 ### Nested Schema for `basic_auth`
 
 Required:
 
-- `password` (String, Sensitive)
-- `username` (String)
+- `password` (String, Sensitive) Password for basic authentication
+- `username` (String) Username for basic authentication

@@ -3,8 +3,9 @@ build:
 
 install:
 	make build
-	mkdir -p ~/.terraform.d/plugins/local/http/1.0.0/linux_amd64
-	cp bin/terraform-provider-http ~/.terraform.d/plugins/local/http/1.0.0/linux_amd64/
+	#		 ~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
+	mkdir -p ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/0.0.7/linux_amd64/
+	cp bin/terraform-provider-http ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/0.0.7/linux_amd64/
 
 docs:
 	export GOBIN=$PWD/bin
