@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	version string = "dev"
+	version string = "1.0.0"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "hashicorp-local.com/rios0rios0/http",
+		Address: "registry.terraform.io/rios0rios0/http",
 		Debug:   debug,
 	}
 

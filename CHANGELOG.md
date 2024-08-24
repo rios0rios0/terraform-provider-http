@@ -16,9 +16,11 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-08-24
+
 ### Changed
 
-- changed the code to comply with the new Terraform SDK according to the [tutorial](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider-configure)
+- **BREAKING CHANGE:** changed the code to comply with the new Terraform SDK according to the [tutorial](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider-configure)
 
 ## [0.0.6] - 2024-08-23
 
