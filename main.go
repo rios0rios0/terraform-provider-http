@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -70,6 +71,10 @@ func resourceHTTPRequest() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
+			"request_body": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
 			"response_body": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -99,8 +104,17 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 	path := d.Get("path").(string)
 	method := d.Get("method").(string)
 	headers := d.Get("headers").(map[string]interface{})
+	requestBody := d.Get("request_body").(string)
 
-	req, err := http.NewRequest(method, baseURL+path, nil)
+	var req *http.Request
+	var err error
+
+	if requestBody != "" {
+		req, err = http.NewRequest(method, baseURL+path, bytes.NewBuffer([]byte(requestBody)))
+	} else {
+		req, err = http.NewRequest(method, baseURL+path, nil)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -130,7 +144,7 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
