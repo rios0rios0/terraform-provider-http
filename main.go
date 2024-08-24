@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 	"io"
@@ -75,9 +76,19 @@ func resourceHTTPRequest() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"is_json": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"response_body": {
 				Type:     schema.TypeString,
 				Computed: true,
+			},
+			"response_body_json": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 			"response_code": {
 				Type:     schema.TypeInt,
@@ -97,7 +108,7 @@ func resourceHTTPRequestRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
-	providerConfig := m.(*schema.ResourceData)
+	providerConfig := m.(*schema.Provider).Meta().(*schema.ResourceData)
 	baseURL := providerConfig.Get("url").(string)
 	ignoreTLS := providerConfig.Get("ignore_tls").(bool)
 
@@ -105,6 +116,7 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 	method := d.Get("method").(string)
 	headers := d.Get("headers").(map[string]interface{})
 	requestBody := d.Get("request_body").(string)
+	isJSON := d.Get("is_json").(bool)
 
 	var req *http.Request
 	var err error
@@ -151,6 +163,15 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 
 	d.Set("response_body", string(body))
 	d.Set("response_code", resp.StatusCode)
+
+	if isJSON {
+		var jsonBody map[string]interface{}
+		if err := json.Unmarshal(body, &jsonBody); err != nil {
+			return err
+		}
+		d.Set("response_body_json", jsonBody)
+	}
+
 	d.SetId(path)
 
 	return nil

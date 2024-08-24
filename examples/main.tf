@@ -15,7 +15,18 @@ provider "http" {
   ignore_tls = true
 }
 
-resource "http_request" "example" {
+resource "http_request" "example1" {
+  path    = "/posts/1"
+  method  = "GET"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  request_body = jsonencode({
+    test = http_request.example2.response_body_json["id"]
+  })
+}
+
+resource "http_request" "example2" {
   path    = "/posts/1"
   method  = "GET"
   headers = {

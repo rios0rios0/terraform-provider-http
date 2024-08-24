@@ -18,14 +18,17 @@ description: |-
 ### Required
 
 - `method` (String)
-- `url` (String)
+- `path` (String)
 
 ### Optional
 
 - `headers` (Map of String)
+- `is_json` (Boolean)
+- `request_body` (String)
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 - `response_body` (String)
+- `response_body_json` (Map of String)
 - `response_code` (Number)
