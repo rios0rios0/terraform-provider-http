@@ -16,6 +16,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [0.0.1] - 2024-08-23
+
 ### Added
 
 - added the new code quickly to test and validate the new feature
