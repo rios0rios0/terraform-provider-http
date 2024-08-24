@@ -16,6 +16,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [0.0.3] - 2024-08-23
+
 ### Changed
 
 - corrected the missing `response_code` field in the output of `http_response` resource
