@@ -16,6 +16,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [0.0.5] - 2024-08-23
+
 ### Changed
 
 - corrected the code to have a `request_body` field in the `http_request` resource
