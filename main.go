@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 	"io/ioutil"
@@ -11,6 +12,35 @@ func main() {
 	plugin.Serve(&plugin.ServeOpts{
 		ProviderFunc: func() *schema.Provider {
 			return &schema.Provider{
+				Schema: map[string]*schema.Schema{
+					"url": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+					"basic_auth": {
+						Type:     schema.TypeList,
+						Optional: true,
+						MaxItems: 1,
+						Elem: &schema.Resource{
+							Schema: map[string]*schema.Schema{
+								"username": {
+									Type:     schema.TypeString,
+									Required: true,
+								},
+								"password": {
+									Type:      schema.TypeString,
+									Required:  true,
+									Sensitive: true,
+								},
+							},
+						},
+					},
+					"ignore_tls": {
+						Type:     schema.TypeBool,
+						Optional: true,
+						Default:  false,
+					},
+				},
 				ResourcesMap: map[string]*schema.Resource{
 					"http_request": resourceHTTPRequest(),
 				},
@@ -27,7 +57,7 @@ func resourceHTTPRequest() *schema.Resource {
 		Delete: resourceHTTPRequestDelete,
 
 		Schema: map[string]*schema.Schema{
-			"url": {
+			"path": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
@@ -62,11 +92,15 @@ func resourceHTTPRequestRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
-	url := d.Get("url").(string)
+	providerConfig := m.(*schema.ResourceData)
+	baseURL := providerConfig.Get("url").(string)
+	ignoreTLS := providerConfig.Get("ignore_tls").(bool)
+
+	path := d.Get("path").(string)
 	method := d.Get("method").(string)
 	headers := d.Get("headers").(map[string]interface{})
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, baseURL+path, nil)
 	if err != nil {
 		return err
 	}
@@ -75,7 +109,21 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 		req.Header.Set(k, v.(string))
 	}
 
+	if v, ok := providerConfig.GetOk("basic_auth"); ok {
+		auth := v.([]interface{})[0].(map[string]interface{})
+		username := auth["username"].(string)
+		password := auth["password"].(string)
+		req.SetBasicAuth(username, password)
+	}
+
 	client := &http.Client{}
+	if ignoreTLS {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client.Transport = tr
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -89,7 +137,7 @@ func resourceHTTPRequestUpdate(d *schema.ResourceData, m interface{}) error {
 
 	d.Set("response_body", string(body))
 	d.Set("response_code", resp.StatusCode)
-	d.SetId(url)
+	d.SetId(path)
 
 	return nil
 }

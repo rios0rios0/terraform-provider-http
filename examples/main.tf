@@ -6,10 +6,17 @@ terraform {
   }
 }
 
-provider "http" {}
+provider "http" {
+  url = "https://jsonplaceholder.typicode.com"
+  basic_auth = {
+    username = "something"
+    password = "***"
+  }
+  ignore_tls = true
+}
 
 resource "http_request" "example" {
-  url     = "https://jsonplaceholder.typicode.com/posts/1"
+  path    = "/posts/1"
   method  = "GET"
   headers = {
     "Content-Type" = "application/json"
