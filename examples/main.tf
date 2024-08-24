@@ -1,8 +1,7 @@
 terraform {
   required_providers {
     http = {
-      source = "github.com/rios0rios0/terraform-provider-http"
-      version = "1.0.0"
+      source = "rios0rios0/http"
     }
   }
 }

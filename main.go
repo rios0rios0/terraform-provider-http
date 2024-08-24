@@ -44,6 +44,10 @@ func resourceHTTPRequest() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"response_code": {
+				Type:     schema.TypeInt,
+				Computed: true,
+			},
 		},
 	}
 }
