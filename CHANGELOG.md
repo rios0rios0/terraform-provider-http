@@ -16,6 +16,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [0.0.2] - 2024-08-23
+
+### Added
+
+- added default publishing files recommended by [Terraform documentation](https://developer.hashicorp.com/terraform/registry/providers/publishing)
+
 ## [0.0.1] - 2024-08-23
 
 ### Added
