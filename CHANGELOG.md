@@ -16,6 +16,16 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [0.0.4] - 2024-08-23
+
+### Added
+
+- added features to handle TSL and Basic Auth in the provider
+
+### Changed
+
+- moved the responsibility to handle the URL from resource to provider
+
 ## [0.0.3] - 2024-08-23
 
 ### Changed
