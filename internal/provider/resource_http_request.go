@@ -3,19 +3,20 @@ package provider
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -31,21 +32,24 @@ func NewHTTPRequestResource() resource.Resource {
 
 // HTTPRequestResource defines the resource implementation.
 type HTTPRequestResource struct {
-	client *http.Client           // TODO: the client should be created in the provider and not here in this file
-	config map[string]interface{} // TODO: it should be a struct well defined in the provider
+	internal *InternalContext
 }
 
 // HTTPRequestResourceModel describes the resource data model.
 type HTTPRequestResourceModel struct {
-	Path         types.String `tfsdk:"path"`
-	Method       types.String `tfsdk:"method"`
-	Headers      types.Map    `tfsdk:"headers"`
-	RequestBody  types.String `tfsdk:"request_body"`
-	IsJSON       types.Bool   `tfsdk:"is_json"`
-	ResponseBody types.String `tfsdk:"response_body"`
-	//ResponseBodyJSON types.Map    `tfsdk:"response_body_json"` TODO: uncomment this line
-	ResponseCode types.Int32  `tfsdk:"response_code"`
-	Id           types.String `tfsdk:"id"`
+	// parameters
+	Method           types.String `tfsdk:"method"`
+	Path             types.String `tfsdk:"path"`
+	Headers          types.Map    `tfsdk:"headers"`
+	RequestBody      types.String `tfsdk:"request_body"`
+	IsResponseJSON   types.Bool   `tfsdk:"is_response_json"`
+	ResponseIDFilter types.String `tfsdk:"response_id_filter"`
+
+	// state
+	Id               types.String    `tfsdk:"id"`
+	ResponseCode     types.Int32     `tfsdk:"response_code"`
+	ResponseBody     types.String    `tfsdk:"response_body"`
+	ResponseBodyJSON jsontypes.Exact `tfsdk:"response_body_json"`
 }
 
 func (it *HTTPRequestResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -57,12 +61,13 @@ func (it *HTTPRequestResource) Schema(ctx context.Context, req resource.SchemaRe
 		MarkdownDescription: "HTTP request resource",
 
 		Attributes: map[string]schema.Attribute{
-			"path": schema.StringAttribute{
-				MarkdownDescription: "Path for the HTTP request",
-				Required:            true,
-			},
+			// parameters
 			"method": schema.StringAttribute{
 				MarkdownDescription: "HTTP method",
+				Required:            true,
+			},
+			"path": schema.StringAttribute{
+				MarkdownDescription: "Path for the HTTP request",
 				Required:            true,
 			},
 			"headers": schema.MapAttribute{
@@ -74,113 +79,120 @@ func (it *HTTPRequestResource) Schema(ctx context.Context, req resource.SchemaRe
 				MarkdownDescription: "Request body",
 				Optional:            true,
 			},
-			"is_json": schema.BoolAttribute{
+			"is_response_body_json": schema.BoolAttribute{
 				MarkdownDescription: "Indicates if the response is JSON",
 				Optional:            true,
-				//Default:             false,
+			},
+			"response_json_filter": schema.StringAttribute{
+				MarkdownDescription: "Filter to extract JSON data",
+				Optional:            true,
+			},
+
+			// state
+			"id": schema.StringAttribute{
+				Computed:            true,
+				Description:         "Resource identifier",
+				MarkdownDescription: "Resource identifier",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"response_code": schema.Int32Attribute{
+				MarkdownDescription: "Response code",
+				Computed:            true,
 			},
 			"response_body": schema.StringAttribute{
 				MarkdownDescription: "Response body",
 				Computed:            true,
 			},
-			// TODO: uncomment this block
-			//"response_body_json": schema.MapAttribute{
-			//	MarkdownDescription: "Response body as JSON",
-			//	Computed:            true,
-			//	ElementType:         types.MapType{ElemType: types.StringType},
-			//},
-			"response_code": schema.Int32Attribute{
-				MarkdownDescription: "Response code",
+			"response_body_json": schema.MapAttribute{
+				MarkdownDescription: "Response body as JSON",
 				Computed:            true,
-			},
-			"id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Resource identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				ElementType:         types.MapType{ElemType: types.StringType},
 			},
 		},
 	}
 }
 
 func (it *HTTPRequestResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	tflog.Info(ctx, "Configuring resource to use HTTP client...")
+
+	// Add a nil check when handling ProviderData because Terraform
+	// sets that data after it calls the ConfigureProvider RPC.
 	if req.ProviderData == nil {
 		return
 	}
 
-	config, ok := req.ProviderData.(map[string]interface{})
+	internal, ok := req.ProviderData.(*InternalContext)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected map[string]interface{}, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *InternalContext, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	it.config = config
+	it.internal = internal
 }
 
 func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model HTTPRequestResourceModel
+	tflog.Info(ctx, "Starting HTTP request...")
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
+	// Retrieve values from plan
+	var model HTTPRequestResourceModel
+	diags := req.Plan.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	baseURL := it.config["url"].(string)
-	ignoreTLS := it.config["ignore_tls"].(bool)
-
-	var err error
+	// base url and path
 	var request *http.Request
-	if model.RequestBody.IsNull() {
-		request, err = http.NewRequest(model.Method.ValueString(), baseURL+model.Path.ValueString(), nil)
-	} else {
-		request, err = http.NewRequest(model.Method.ValueString(), baseURL+model.Path.ValueString(), bytes.NewBuffer([]byte(model.RequestBody.ValueString())))
-	}
-
+	endpoint, err := url.JoinPath(it.internal.config.URL, model.Path.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating request", err.Error())
+		resp.Diagnostics.AddError("Error joining the URL path, the URL + Path informed are malformed...", err.Error())
 		return
 	}
 
+	// request body
+	var requestBody io.Reader
+	if !model.RequestBody.IsNull() {
+		requestBody = bytes.NewBuffer([]byte(model.RequestBody.ValueString()))
+	}
+	request, err = http.NewRequestWithContext(ctx, model.Method.ValueString(), endpoint, requestBody)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating request. Check the method or request body informed...", err.Error())
+		return
+	}
+
+	// headers
 	for key, value := range model.Headers.Elements() {
 		request.Header.Set(key, value.(types.String).ValueString())
 	}
 
-	if value, ok := it.config["basic_auth"]; ok {
-		auth := value.(types.Object)
-		username := auth.Attributes()["username"].(types.String).ValueString()
-		password := auth.Attributes()["password"].(types.String).ValueString()
-		request.SetBasicAuth(username, password)
+	// basic auth
+	if it.internal.config.HasAuthentication() {
+		request.SetBasicAuth(it.internal.config.BasicAuth.Username, it.internal.config.BasicAuth.Password)
 	}
 
-	client := &http.Client{}
-	if ignoreTLS {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
-		client.Transport = transport
-	}
-
+	// execute the request
+	client := it.internal.client
 	response, err := client.Do(request)
 	if err != nil {
-		resp.Diagnostics.AddError("Error executing using default HTTP client", err.Error())
+		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
 		return
 	}
 	defer response.Body.Close()
 
+	// read the response body
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading the buffer from the response responseBody", err.Error())
+		resp.Diagnostics.AddError("Error reading the buffer from the response body...", err.Error())
 		return
 	}
 
 	// avoid to change the state if the response is not successful
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		resp.Diagnostics.AddError(
 			"Error performing HTTP request. Not expected status code...",
 			fmt.Sprintf("Response code: %s. Response responseBody: %s", response.Status, string(responseBody)))
@@ -190,18 +202,33 @@ func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRe
 	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
 	model.ResponseBody = types.StringValue(string(responseBody))
 
-	if model.IsJSON.ValueBool() {
-		var jsonBody map[string]interface{}
-		if err := json.Unmarshal(responseBody, &jsonBody); err != nil {
-			resp.Diagnostics.AddError("Error parsing JSON response", err.Error())
+	if model.IsResponseJSON.ValueBool() {
+		model.ResponseBodyJSON = jsontypes.NewExactValue(string(responseBody))
+
+		// extract the ID from the JSON response using the filter
+		var jsonResponse map[string]interface{}
+		if err := json.Unmarshal(responseBody, &jsonResponse); err != nil {
+			resp.Diagnostics.AddError("Error unmarshalling JSON response...", err.Error())
 			return
 		}
-		//model.ResponseBodyJSON, _ = types.ObjectValueFrom(ctx, types.StringType, jsonBody) TODO: uncomment this line
+
+		element, err := jsonpath.JsonPathLookup(jsonResponse, model.ResponseJSONFilter.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Error querying JSON response with the provided filter...", err.Error())
+			return
+		}
+
+		if element != nil {
+			model.Id = element
+		}
+	}
+	if model.Id.IsNull() {
+		model.Id = types.StringValue(fmt.Sprintf("%s-%v", model.Method.ValueString(), model.Path.ValueString()))
 	}
 
-	model.Id = types.StringValue(model.Path.ValueString())
-	tflog.Trace(ctx, "created a resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+
+	tflog.Info(ctx, "Completed HTTP request...", map[string]any{"success": true})
 }
 
 func (it *HTTPRequestResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

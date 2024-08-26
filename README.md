@@ -19,7 +19,7 @@ This Terraform provider allows you to execute HTTP requests and store the respon
 2. Build the provider:
 
    ```sh
-   go build -o terraform-provider-http
+   make build
    ```
 
 ## Using the Provider Locally
@@ -27,77 +27,65 @@ This Terraform provider allows you to execute HTTP requests and store the respon
 1. Create the local plugin directory structure:
 
    ```sh
-   mkdir -p ~/.terraform.d/plugins/local/http/1.0.0/linux_amd64
+   make install
    ```
 
-2. Copy the provider binary to the local plugin directory:
-
-   ```sh
-   cp terraform-provider-http ~/.terraform.d/plugins/local/http/1.0.0/linux_amd64/
-   ```
-
-3. Create a Terraform configuration file (`main.tf`):
+2. Create a Terraform configuration file (`main.tf`):
+   * local provider (for the steps above 1 and 2)
 
    ```hcl
    terraform {
      required_providers {
        http = {
-         source = "local/http"
+         source = "hashicorp-local.com/rios0rios0/http"
          version = "1.0.0"
        }
      }
    }
-
-   provider "http" {}
-
-   resource "http_request" "example" {
-     url     = "https://jsonplaceholder.typicode.com/posts/1"
-     method  = "GET"
-     headers = {
-       "Content-Type" = "application/json"
-     }
-   }
-
-   output "response_body" {
-     value = http_request.example.response_body
-   }
-
-   output "response_code" {
-     value = http_request.example.response_code
-   }
    ```
 
-4. Initialize and apply the configuration:
-
-   ```sh
-   terraform init
-   terraform apply
-   ```
-
-## Using the Provider from GitHub
-
-1. Tag your provider release in your GitHub repository.
-
-2. Update your Terraform configuration file (`main.tf`) to use the GitHub provider source:
+   * remote provider (skipping the steps above 1 and 2)
 
    ```hcl
    terraform {
      required_providers {
        http = {
-         source = "github.com/rios0rios0/terraform-provider-http"
+         source = "rios0rios0/http"
          version = "1.0.0"
        }
      }
    }
+   ```
 
-   provider "http" {}
+   * and add the following configuration:
 
-   resource "http_request" "example" {
-     url     = "https://jsonplaceholder.typicode.com/posts/1"
+   ```hcl
+   provider "http" {
+     url = "https://jsonplaceholder.typicode.com"
+     basic_auth = {
+       username = "user"
+       password = "password"
+     }
+     ignore_tls = true
+   }
+
+   resource "http_request" "example1" {
      method  = "GET"
+     path     = "/posts/1"
      headers = {
        "Content-Type" = "application/json"
      }
+   }
+
+   resource "http_request" "example2" {
+     method  = "GET"
+     path     = "/posts/1"
+     headers = {
+       "Content-Type" = "application/json"
+     }
+     request_body = jsonencode({
+       test = http_request.example1.response_body_json["id"]
+     })
    }
 
    output "response_body" {
@@ -123,7 +111,3 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-### TODO:
-
-- change the structure to follow the official scaffold here: https://github.com/hashicorp/terraform-provider-scaffolding-framework
