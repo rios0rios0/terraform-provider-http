@@ -1,4 +1,4 @@
-package provider
+package internal
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -8,7 +8,7 @@ import (
 const (
 	providerConfig = `
 provider "http" {
-  url     = "http://localhost:19090"
+  url     = "https://jsonplaceholder.typicode.com"
   basic_auth = {
     username = "anything"
     password = "anything"
@@ -20,6 +20,6 @@ provider "http" {
 
 var (
 	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-		"http": providerserver.NewProtocol6WithError(New("test")()),
+		"http": providerserver.NewProtocol6WithError(NewProvider("test")()),
 	}
 )

@@ -1,14 +1,16 @@
-package provider
+package internal
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/ohler55/ojg/jp"
+	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
+	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,31 +34,31 @@ func NewHTTPRequestResource() resource.Resource {
 
 // HTTPRequestResource defines the resource implementation.
 type HTTPRequestResource struct {
-	internal *InternalContext
+	internal *entities.InternalContext
 }
 
 // HTTPRequestResourceModel describes the resource data model.
 type HTTPRequestResourceModel struct {
 	// parameters
-	Method           types.String `tfsdk:"method"`
-	Path             types.String `tfsdk:"path"`
-	Headers          types.Map    `tfsdk:"headers"`
-	RequestBody      types.String `tfsdk:"request_body"`
-	IsResponseJSON   types.Bool   `tfsdk:"is_response_json"`
-	ResponseIDFilter types.String `tfsdk:"response_id_filter"`
+	Method               types.String `tfsdk:"method"`
+	Path                 types.String `tfsdk:"path"`
+	Headers              types.Map    `tfsdk:"headers"`
+	RequestBody          types.String `tfsdk:"request_body"`
+	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
+	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 
 	// state
-	Id               types.String    `tfsdk:"id"`
-	ResponseCode     types.Int32     `tfsdk:"response_code"`
-	ResponseBody     types.String    `tfsdk:"response_body"`
-	ResponseBodyJSON jsontypes.Exact `tfsdk:"response_body_json"`
+	Id           types.String `tfsdk:"id"`
+	ResponseCode types.Int32  `tfsdk:"response_code"`
+	ResponseBody types.String `tfsdk:"response_body"`
+	//ResponseBodyJSON types.Map    `tfsdk:"response_body_json"`
 }
 
-func (it *HTTPRequestResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (it *HTTPRequestResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_request"
 }
 
-func (it *HTTPRequestResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "HTTP request resource",
 
@@ -83,7 +85,7 @@ func (it *HTTPRequestResource) Schema(ctx context.Context, req resource.SchemaRe
 				MarkdownDescription: "Indicates if the response is JSON",
 				Optional:            true,
 			},
-			"response_json_filter": schema.StringAttribute{
+			"response_body_id_filter": schema.StringAttribute{
 				MarkdownDescription: "Filter to extract JSON data",
 				Optional:            true,
 			},
@@ -105,12 +107,30 @@ func (it *HTTPRequestResource) Schema(ctx context.Context, req resource.SchemaRe
 				MarkdownDescription: "Response body",
 				Computed:            true,
 			},
-			"response_body_json": schema.MapAttribute{
-				MarkdownDescription: "Response body as JSON",
-				Computed:            true,
-				ElementType:         types.MapType{ElemType: types.StringType},
-			},
+			//"response_body_json": schema.MapAttribute{
+			//	MarkdownDescription: "Response body as JSON",
+			//	Computed:            true,
+			//	ElementType:         types.StringType,
+			//},
 		},
+	}
+}
+
+func (it *HTTPRequestResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var model HTTPRequestResourceModel
+	helper := helpers.NewResourceHelper()
+	if !helper.RetrieveValidateConfigRequest(ctx, req, resp, &model) {
+		return
+	}
+
+	if !model.IsResponseBodyJSON.IsUnknown() && model.IsResponseBodyJSON.ValueBool() &&
+		(model.ResponseBodyIDFilter.IsUnknown() || model.ResponseBodyIDFilter.IsNull()) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("response_id_filter"),
+			"Since the response is JSON, the filter must be provided.",
+			"When the expected answer is a JSON, the ID must be parsed in the state. "+
+				"Please provide a filter to extract the ID from the JSON response. Refer to the documentation for more information (https://github.com/ohler55/ojg).",
+		)
 	}
 }
 
@@ -123,7 +143,7 @@ func (it *HTTPRequestResource) Configure(ctx context.Context, req resource.Confi
 		return
 	}
 
-	internal, ok := req.ProviderData.(*InternalContext)
+	internal, ok := req.ProviderData.(*entities.InternalContext)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
@@ -138,95 +158,52 @@ func (it *HTTPRequestResource) Configure(ctx context.Context, req resource.Confi
 func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Info(ctx, "Starting HTTP request...")
 
-	// Retrieve values from plan
 	var model HTTPRequestResourceModel
-	diags := req.Plan.Get(ctx, &model)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	helper := helpers.NewResourceHelper()
+	if !helper.RetrieveCreateRequest(ctx, req, resp, &model) {
 		return
 	}
 
-	// base url and path
-	var request *http.Request
-	endpoint, err := url.JoinPath(it.internal.config.URL, model.Path.ValueString())
+	endpoint, err := url.JoinPath(it.internal.Config.URL, model.Path.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error joining the URL path, the URL + Path informed are malformed...", err.Error())
 		return
 	}
 
-	// request body
-	var requestBody io.Reader
-	if !model.RequestBody.IsNull() {
-		requestBody = bytes.NewBuffer([]byte(model.RequestBody.ValueString()))
-	}
-	request, err = http.NewRequestWithContext(ctx, model.Method.ValueString(), endpoint, requestBody)
+	request, err := it.buildRequest(ctx, model, endpoint)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating request. Check the method or request body informed...", err.Error())
 		return
 	}
 
-	// headers
-	for key, value := range model.Headers.Elements() {
-		request.Header.Set(key, value.(types.String).ValueString())
-	}
-
-	// basic auth
-	if it.internal.config.HasAuthentication() {
-		request.SetBasicAuth(it.internal.config.BasicAuth.Username, it.internal.config.BasicAuth.Password)
-	}
-
-	// execute the request
-	client := it.internal.client
-	response, err := client.Do(request)
+	response, err := it.internal.Client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
 		return
 	}
 	defer response.Body.Close()
 
-	// read the response body
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading the buffer from the response body...", err.Error())
 		return
 	}
 
-	// avoid to change the state if the response is not successful
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+	if !isResponseSuccessful(response) {
 		resp.Diagnostics.AddError(
 			"Error performing HTTP request. Not expected status code...",
 			fmt.Sprintf("Response code: %s. Response responseBody: %s", response.Status, string(responseBody)))
 		return
 	}
 
-	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
-	model.ResponseBody = types.StringValue(string(responseBody))
+	updateModelWithResponse(ctx, &model, response, responseBody)
+	updateModelWithID(&model, responseBody)
 
-	if model.IsResponseJSON.ValueBool() {
-		model.ResponseBodyJSON = jsontypes.NewExactValue(string(responseBody))
-
-		// extract the ID from the JSON response using the filter
-		var jsonResponse map[string]interface{}
-		if err := json.Unmarshal(responseBody, &jsonResponse); err != nil {
-			resp.Diagnostics.AddError("Error unmarshalling JSON response...", err.Error())
-			return
-		}
-
-		element, err := jsonpath.JsonPathLookup(jsonResponse, model.ResponseJSONFilter.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Error querying JSON response with the provided filter...", err.Error())
-			return
-		}
-
-		if element != nil {
-			model.Id = element
-		}
+	diags := resp.State.Set(ctx, model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	if model.Id.IsNull() {
-		model.Id = types.StringValue(fmt.Sprintf("%s-%v", model.Method.ValueString(), model.Path.ValueString()))
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 
 	tflog.Info(ctx, "Completed HTTP request...", map[string]any{"success": true})
 }
@@ -263,4 +240,56 @@ func (it *HTTPRequestResource) Delete(ctx context.Context, req resource.DeleteRe
 
 func (it *HTTPRequestResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (it *HTTPRequestResource) buildRequest(ctx context.Context, model HTTPRequestResourceModel, endpoint string) (*http.Request, error) {
+	var requestBody io.Reader
+	if !model.RequestBody.IsNull() {
+		requestBody = bytes.NewBuffer([]byte(model.RequestBody.ValueString()))
+	}
+	request, err := http.NewRequestWithContext(ctx, model.Method.ValueString(), endpoint, requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range model.Headers.Elements() {
+		request.Header.Set(key, value.(types.String).ValueString())
+	}
+
+	if it.internal.Config.HasAuthentication() {
+		request.SetBasicAuth(it.internal.Config.BasicAuth.Username, it.internal.Config.BasicAuth.Password)
+	}
+
+	return request, nil
+}
+
+func isResponseSuccessful(response *http.Response) bool {
+	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+}
+
+func updateModelWithResponse(ctx context.Context, model *HTTPRequestResourceModel, response *http.Response, responseBody []byte) {
+	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
+	model.ResponseBody = types.StringValue(string(responseBody))
+	// TODO: this error should be handled
+	//model.ResponseBodyJSON, _ = types.MapValueFrom(ctx, types.StringType, string(responseBody))
+
+	//if model.IsResponseBodyJSON.ValueBool() {
+	//}
+}
+
+func updateModelWithID(model *HTTPRequestResourceModel, responseBody []byte) {
+	if model.IsResponseBodyJSON.ValueBool() {
+		var jsonResponse map[string]interface{}
+		if err := json.Unmarshal(responseBody, &jsonResponse); err == nil {
+			jsonPath, err := jp.ParseString(model.ResponseBodyIDFilter.ValueString())
+			if err == nil {
+				element := jsonPath.Get(jsonResponse)
+				if element != nil {
+					model.Id = types.StringValue(fmt.Sprintf("%s", element))
+					return
+				}
+			}
+		}
+	}
+	model.Id = types.StringValue(fmt.Sprintf("%s-%v", model.Method.ValueString(), model.Path.ValueString()))
 }

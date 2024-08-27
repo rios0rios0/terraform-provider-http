@@ -1,4 +1,4 @@
-package provider
+package internal
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
+	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
 	"os"
 )
 
@@ -31,12 +33,12 @@ type HTTPProviderModel struct {
 	IgnoreTLS types.Bool   `tfsdk:"ignore_tls" json:"-"`
 }
 
-func (it *HTTPProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "http"
 	resp.Version = it.version
 }
 
-func (it *HTTPProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
@@ -72,11 +74,9 @@ func (it *HTTPProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 }
 
 func (it *HTTPProvider) ValidateConfig(ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse) {
-	// retrieve provider model from configuration
 	var model HTTPProviderModel
-	diags := req.Config.Get(ctx, &model)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	helper := helpers.NewProviderHelper()
+	if !helper.RetrieveValidateConfigRequest(ctx, req, resp, &model) {
 		return
 	}
 
@@ -111,11 +111,9 @@ func (it *HTTPProvider) ValidateConfig(ctx context.Context, req provider.Validat
 func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	tflog.Info(ctx, "Configuring HTTP client...")
 
-	// retrieve provider model from configuration
 	var model HTTPProviderModel
-	diags := req.Config.Get(ctx, &model)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	helper := helpers.NewProviderHelper()
+	if !helper.RetrieveConfigureRequest(ctx, req, resp, &model) {
 		return
 	}
 
@@ -127,7 +125,7 @@ func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	if url == "" {
 		url = model.URL.ValueString()
 	}
-	if !model.BasicAuth.IsNull() { // double checking because it is optional
+	if !model.BasicAuth.IsNull() { // double-checking because it is optional
 		if username == "" {
 			username = model.BasicAuth.Attributes()["username"].(types.String).ValueString()
 		}
@@ -149,12 +147,12 @@ func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "Creating HTTP client...")
 
-	internal := NewInternalContext(
+	internal := entities.NewInternalContext(
 		model.IgnoreTLS.ValueBool(),
-		NewConfiguration(url),
+		entities.NewConfiguration(url),
 	)
 	if !model.BasicAuth.IsNull() {
-		internal.config.BasicAuth = &BasicAuth{
+		internal.Config.BasicAuth = &entities.BasicAuth{
 			Username: username,
 			Password: password,
 		}
@@ -166,21 +164,21 @@ func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	tflog.Info(ctx, "Configured HTTP client...", map[string]any{"success": true})
 }
 
-func (it *HTTPProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (it *HTTPProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewHTTPRequestResource,
 	}
 }
 
-func (it *HTTPProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (it *HTTPProvider) DataSources(context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{}
 }
 
-func (it *HTTPProvider) Functions(_ context.Context) []func() function.Function {
+func (it *HTTPProvider) Functions(context.Context) []func() function.Function {
 	return []func() function.Function{}
 }
 
-func New(version string) func() provider.Provider {
+func NewProvider(version string) func() provider.Provider {
 	return func() provider.Provider {
 		return &HTTPProvider{
 			version: version,

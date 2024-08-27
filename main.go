@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/rios0rios0/terraform-provider-http/internal/provider"
+	"github.com/rios0rios0/terraform-provider-http/internal"
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -24,7 +24,7 @@ func main() {
 		Debug:   debug,
 	}
 
-	err := providerserver.Serve(context.Background(), provider.New(version), opts)
+	err := providerserver.Serve(context.Background(), internal.NewProvider(version), opts)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
