@@ -3,12 +3,36 @@
 page_title: "http Provider"
 subcategory: ""
 description: |-
+  The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.
   
+  provider "http" {
+    url = "https://jsonplaceholder.typicode.com"
+    basic_auth = {
+  	username = "something"
+  	password = "***"
+    }
+    ignore_tls = true
+  }
+  
+  See complete example at the GitHub repository https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf.
 ---
 
 # http Provider
 
+The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.
 
+```hcl
+provider "http" {
+  url = "https://jsonplaceholder.typicode.com"
+  basic_auth = {
+	username = "something"
+	password = "***"
+  }
+  ignore_tls = true
+}
+```
+
+See complete example at the [GitHub repository](https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).
 
 
 
@@ -17,17 +41,17 @@ description: |-
 
 ### Required
 
-- `url` (String) Base URL for HTTP requests
+- `url` (String) The base URL for all HTTP requests made by this provider. This URL serves as the root endpoint for the Web endpoint that the provider will interact with. It is a required attribute and must be specified to ensure proper communication with the target.
 
 ### Optional
 
-- `basic_auth` (Attributes) Basic authentication credentials (see [below for nested schema](#nestedatt--basic_auth))
-- `ignore_tls` (Boolean) Ignore TLS certificate verification
+- `basic_auth` (Attributes) Credentials for basic authentication. This attribute allows you to specify the username and password required for basic HTTP authentication. It is optional and should be used when the target Web endpoint requires basic authentication for access. (see [below for nested schema](#nestedatt--basic_auth))
+- `ignore_tls` (Boolean) A boolean flag to indicate whether TLS certificate verification should be ignored. This is useful for testing purposes or when interacting with APIs that use self-signed certificates. It is optional and defaults to `false`.
 
 <a id="nestedatt--basic_auth"></a>
 ### Nested Schema for `basic_auth`
 
 Required:
 
-- `password` (String, Sensitive) Password for basic authentication
-- `username` (String) Username for basic authentication
+- `password` (String, Sensitive) The password for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used. The password is marked as sensitive to ensure it is not exposed in logs or state files.
+- `username` (String) The username for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used.

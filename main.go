@@ -9,6 +9,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
+// According to Terraform SDK documentation, the `main.go` should be on the root of the project.
+// Otherwise, `tfplugindocs generate` will not work and `.goreleaser.yml` should be changed.
+
 var (
 	version string = "1.0.0"
 )
