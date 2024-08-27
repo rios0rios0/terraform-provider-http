@@ -21,23 +21,29 @@ resource "http_request" "example1" {
   headers = {
     "Content-Type" = "application/json"
   }
+  is_response_body_json = true
+  response_body_id_filter = "$.id"
 }
 
 resource "http_request" "example2" {
-  method  = "GET"
-  path    = "/posts/2"
+  method  = "POST"
+  path    = "/posts"
   headers = {
     "Content-Type" = "application/json"
   }
   request_body = jsonencode({
-    test = lookup(jsondecode(http_request.example1.response_body_json), "id", "")
+    anything = http_request.example1.response_body_json["id"]
   })
 }
 
-output "response_body" {
-  value = http_request.example.response_body
+output "example1_response_body_id" {
+  value = http_request.example1.response_body_id
 }
 
-output "response_code" {
-  value = http_request.example.response_code
+output "example2_response_body_id" {
+  value = http_request.example1.response_body_json["id"]
+}
+
+output "example2_response_body_param" {
+  value = lookup(http_request.example1.response_body_json, "param1.param2.value", "")
 }

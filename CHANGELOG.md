@@ -19,6 +19,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 ### Added
 
 - added JSON handling to perform better operations with the response
+- added state importing feature with Base64 encoding
 
 ### Changed
 

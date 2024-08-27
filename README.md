@@ -63,8 +63,8 @@ This Terraform provider allows you to execute HTTP requests and store the respon
    provider "http" {
      url = "https://jsonplaceholder.typicode.com"
      basic_auth = {
-       username = "user"
-       password = "password"
+       username = "something"
+       password = "***"
      }
      ignore_tls = true
    }
@@ -75,27 +75,31 @@ This Terraform provider allows you to execute HTTP requests and store the respon
      headers = {
        "Content-Type" = "application/json"
      }
+     is_response_body_json = true
+     response_body_id_filter = "$.id"
    }
 
    resource "http_request" "example2" {
-     method  = "GET"
-     path     = "/posts/1"
+     method  = "POST"
+     path     = "/posts"
      headers = {
        "Content-Type" = "application/json"
      }
      request_body = jsonencode({
-       # TODO: the objective in the future is to avoid using "lookup" and "jsondecode" functions
-       #test = http_request.example1.response_body_json["id"]
-       test = lookup(jsondecode(http_request.example1.response_body_json), "id", "")
+       anything = http_request.example1.response_body_json["id"]
      })
    }
 
-   output "response_body" {
-     value = http_request.example.response_body
+   output "example1_response_body_id" {
+     value = http_request.example1.response_body_id
    }
 
-   output "response_code" {
-     value = http_request.example.response_code
+   output "example2_response_body_id" {
+     value = http_request.example1.response_body_json["id"]
+   }
+   
+   output "example2_response_body_param" {
+     value = lookup(http_request.example1.response_body_json, "param1.param2.value", "")
    }
    ```
 

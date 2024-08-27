@@ -20,4 +20,5 @@ docs:
 	tfplugindocs generate
 
 test:
-	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
+	TF_ACC=1 go test -v -tags test,unit,integration -coverpkg=./internal -covermode=count -coverprofile=coverage.txt -timeout 120m ./internal/... | grep -v '\[no test files\]'
+	go tool cover -func coverage.txt

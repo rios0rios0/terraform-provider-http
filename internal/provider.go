@@ -40,6 +40,19 @@ func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
+		MarkdownDescription: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.\n\n" +
+			"```hcl\n" +
+			`provider "http" {
+  url = "https://jsonplaceholder.typicode.com"
+  basic_auth = {
+	username = "something"
+	password = "***"
+  }
+  ignore_tls = true
+}` +
+			"\n```\n\n" +
+			"See complete example at the [GitHub repository](https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Description:         "The base URL for all HTTP requests made by this provider. This URL serves as the root endpoint for the Web endpoint that the provider will interact with. It is a required attribute and must be specified to ensure proper communication with the target.",
@@ -140,10 +153,10 @@ func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "http_password")
 	ctx = tflog.SetField(ctx, "http_ignore_tls", model.IgnoreTLS.ValueBool())
 
-	//TODO: is it worth to use JSON instead of getting value per value?
-	//var source Configuration
-	//jsonData, _ := json.Marshal(model)
-	//_ = json.Unmarshal(jsonData, &source)
+	/* TODO: is it worth to use JSON instead of getting value per value?
+	var source Configuration
+	jsonData, _ := json.Marshal(model)
+	_ = json.Unmarshal(jsonData, &source) */
 
 	tflog.Debug(ctx, "Creating HTTP client...")
 

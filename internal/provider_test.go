@@ -1,3 +1,5 @@
+//go:build unit
+
 package internal
 
 import (
@@ -7,15 +9,14 @@ import (
 
 const (
 	providerConfig = `
-provider "http" {
-  url     = "https://jsonplaceholder.typicode.com"
-  basic_auth = {
-    username = "anything"
-    password = "anything"
-  }
-  ignore_tls = true
-}
-`
+		provider "http" {
+		  url     = "https://jsonplaceholder.typicode.com"
+		  basic_auth = {
+			username = "anything"
+			password = "anything"
+		  }
+		  ignore_tls = true
+		}`
 )
 
 var (
