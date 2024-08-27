@@ -84,7 +84,9 @@ This Terraform provider allows you to execute HTTP requests and store the respon
        "Content-Type" = "application/json"
      }
      request_body = jsonencode({
-       test = http_request.example1.response_body_json["id"]
+       # TODO: the objective in the future is to avoid using "lookup" and "jsondecode" functions
+       #test = http_request.example1.response_body_json["id"]
+       test = lookup(jsondecode(http_request.example1.response_body_json), "id", "")
      })
    }
 

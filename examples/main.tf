@@ -25,12 +25,12 @@ resource "http_request" "example1" {
 
 resource "http_request" "example2" {
   method  = "GET"
-  path    = "/posts/1"
+  path    = "/posts/2"
   headers = {
     "Content-Type" = "application/json"
   }
   request_body = jsonencode({
-    test = http_request.example1.response_body_json["id"]
+    test = lookup(jsondecode(http_request.example1.response_body_json), "id", "")
   })
 }
 
