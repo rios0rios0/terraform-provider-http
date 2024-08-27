@@ -1,6 +1,6 @@
 //go:build integration
 
-package internal
+package provider
 
 import (
 	"bytes"

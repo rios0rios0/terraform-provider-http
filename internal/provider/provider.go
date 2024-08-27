@@ -1,4 +1,4 @@
-package internal
+package provider
 
 import (
 	"context"
@@ -31,6 +31,14 @@ type HTTPProviderModel struct {
 	URL       types.String `tfsdk:"url" json:"url"`
 	BasicAuth types.Object `tfsdk:"basic_auth" json:"basic_auth"`
 	IgnoreTLS types.Bool   `tfsdk:"ignore_tls" json:"-"`
+}
+
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &HTTPProvider{
+			version: version,
+		}
+	}
 }
 
 func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -189,12 +197,4 @@ func (it *HTTPProvider) DataSources(context.Context) []func() datasource.DataSou
 
 func (it *HTTPProvider) Functions(context.Context) []func() function.Function {
 	return []func() function.Function{}
-}
-
-func NewProvider(version string) func() provider.Provider {
-	return func() provider.Provider {
-		return &HTTPProvider{
-			version: version,
-		}
-	}
 }

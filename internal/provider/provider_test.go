@@ -1,6 +1,6 @@
 //go:build unit
 
-package internal
+package provider
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -21,6 +21,6 @@ const (
 
 var (
 	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-		"http": providerserver.NewProtocol6WithError(NewProvider("test")()),
+		"http": providerserver.NewProtocol6WithError(New("test")()),
 	}
 )

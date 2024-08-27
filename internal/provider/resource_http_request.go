@@ -1,4 +1,4 @@
-package internal
+package provider
 
 import (
 	"bytes"
@@ -29,10 +29,6 @@ var (
 	_ resource.ResourceWithConfigure   = &HTTPRequestResource{}
 	_ resource.ResourceWithImportState = &HTTPRequestResource{}
 )
-
-func NewHTTPRequestResource() resource.Resource {
-	return &HTTPRequestResource{}
-}
 
 // HTTPRequestResource defines the resource implementation.
 type HTTPRequestResource struct {
@@ -72,6 +68,10 @@ type HTTPRequestResourceModelNative struct {
 	ResponseBody     string            `json:"response_body,omitempty"`
 	ResponseBodyID   string            `json:"response_body_id,omitempty"`
 	ResponseBodyJSON map[string]string `json:"response_body_json,omitempty"`
+}
+
+func NewHTTPRequestResource() resource.Resource {
+	return &HTTPRequestResource{}
 }
 
 func (it *HTTPRequestResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {

@@ -4,8 +4,8 @@ This Terraform provider allows you to execute HTTP requests and store the respon
 
 ## Requirements
 
-- [Terraform](https://www.terraform.io/downloads.html) 0.13+
 - [Go](https://golang.org/doc/install) 1.16+
+- [Terraform](https://www.terraform.io/downloads.html) 0.13+
 
 ## Building the Provider
 
@@ -119,6 +119,8 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## References
-- https://developer.hashicorp.com/terraform/plugin/framework/resources/create
-- https://github.com/hashicorp/terraform-provider-hashicups
-- https://github.com/hashicorp/terraform-provider-scaffolding-framework
+
+- [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/resources/create)
+- [Develop a Terraform provider (Terraform HashiCups Provider)](https://github.com/hashicorp/terraform-provider-hashicups)
+- [Terraform Provider Scaffolding (Terraform Plugin Framework)](https://github.com/hashicorp/terraform-provider-scaffolding-framework)
+- [Standard Go Project Layout](https://github.com/golang-standards/project-layout/tree/master?tab=readme-ov-file)
