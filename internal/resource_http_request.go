@@ -3,10 +3,17 @@ package internal
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/ohler55/ojg/jp"
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
@@ -14,12 +21,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
-
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -49,10 +50,27 @@ type HTTPRequestResourceModel struct {
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 
 	// state
-	Id           types.String `tfsdk:"id"`
-	ResponseCode types.Int32  `tfsdk:"response_code"`
-	ResponseBody types.String `tfsdk:"response_body"`
-	//ResponseBodyJSON types.Map    `tfsdk:"response_body_json"`
+	ID               types.String `tfsdk:"id"`
+	ResponseCode     types.Int32  `tfsdk:"response_code"`
+	ResponseBody     types.String `tfsdk:"response_body"`
+	ResponseBodyID   types.String `tfsdk:"response_body_id"`
+	ResponseBodyJSON types.Map    `tfsdk:"response_body_json"`
+}
+
+type HTTPRequestResourceModelNative struct {
+	// parameters
+	Method               string            `json:"method"`
+	Path                 string            `json:"path"`
+	Headers              map[string]string `json:"headers,omitempty"`
+	RequestBody          string            `json:"request_body,omitempty"`
+	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
+	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
+
+	// state
+	ResponseCode     int32             `json:"response_code"`
+	ResponseBody     string            `json:"response_body,omitempty"`
+	ResponseBodyID   string            `json:"response_body_id,omitempty"`
+	ResponseBodyJSON map[string]string `json:"response_body_json,omitempty"`
 }
 
 func (it *HTTPRequestResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -67,27 +85,33 @@ func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaReques
 			// parameters
 			"method": schema.StringAttribute{
 				Required:            true,
+				Description:         "HTTP method",
 				MarkdownDescription: "HTTP method",
 			},
 			"path": schema.StringAttribute{
 				Required:            true,
+				Description:         "Path for the HTTP request",
 				MarkdownDescription: "Path for the HTTP request",
 			},
 			"headers": schema.MapAttribute{
 				Optional:            true,
-				MarkdownDescription: "HTTP headers",
 				ElementType:         types.StringType,
+				Description:         "HTTP headers",
+				MarkdownDescription: "HTTP headers",
 			},
 			"request_body": schema.StringAttribute{
 				Optional:            true,
+				Description:         "Request body",
 				MarkdownDescription: "Request body",
 			},
 			"is_response_body_json": schema.BoolAttribute{
 				Optional:            true,
+				Description:         "Indicates if the response is JSON",
 				MarkdownDescription: "Indicates if the response is JSON",
 			},
 			"response_body_id_filter": schema.StringAttribute{
 				Optional:            true,
+				Description:         "Filter to extract JSON data",
 				MarkdownDescription: "Filter to extract JSON data",
 			},
 
@@ -102,17 +126,25 @@ func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 			"response_code": schema.Int32Attribute{
 				Computed:            true,
+				Description:         "Response code",
 				MarkdownDescription: "Response code",
 			},
 			"response_body": schema.StringAttribute{
 				Computed:            true,
+				Description:         "Response body",
 				MarkdownDescription: "Response body",
 			},
-			//"response_body_json": schema.MapAttribute{
-			//	Computed:            true,
-			//	ElementType:         types.StringType,
-			//	MarkdownDescription: "Response body as JSON",
-			//},
+			"response_body_id": schema.StringAttribute{
+				Computed:            true,
+				Description:         "Response body ID when `is_response_body_json` is true and `response_body_id_filter` is provided.",
+				MarkdownDescription: "Response body ID when `is_response_body_json` is true and `response_body_id_filter` is provided.",
+			},
+			"response_body_json": schema.MapAttribute{
+				Computed:            true,
+				ElementType:         types.StringType,
+				Description:         `Response body as Terraform map object. Access the nested items using the dot notation. Eg.: "response_body_json["nested.item.value"]"`,
+				MarkdownDescription: `Response body as Terraform map object. Access the nested items using the dot notation. Eg.: "response_body_json["nested.item.value"]"`,
+			},
 		},
 	}
 }
@@ -190,22 +222,27 @@ func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	if !isResponseSuccessful(response) {
+	if !helpers.IsResponseSuccessful(response) {
 		resp.Diagnostics.AddError(
 			"Error performing HTTP request. Not expected status code...",
 			fmt.Sprintf("Response code: %s. Response responseBody: %s", response.Status, string(responseBody)))
 		return
 	}
 
-	updateModelWithID(&model, responseBody)
-	updateModelWithResponse(ctx, &model, response, responseBody)
+	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
+	model.ResponseBody = types.StringValue(string(responseBody))
+	updateResponseBody(&model, &resp.Diagnostics)
+	updateResponseBodyID(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
+	updateResponseBodyJSON(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
 
-	diags := resp.State.Set(ctx, model)
-	resp.Diagnostics.Append(diags...)
+	// the ID should be the last attribute to be set so it can be encoded
+	model.ID = types.StringValue(encodeModelToBase64(&model, &resp.Diagnostics))
+	//resp.Diagnostics.AddError("DEBUG => ", fmt.Sprintf("%v", model)) // TODO: remove this line
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
 	tflog.Info(ctx, "Completed HTTP request...", map[string]any{"success": true})
 }
 
@@ -240,21 +277,33 @@ func (it *HTTPRequestResource) Delete(ctx context.Context, req resource.DeleteRe
 }
 
 func (it *HTTPRequestResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, ",")
+	// decode the base64 input
+	model := decodeBase64ToModel(req.ID, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	// validate the mode
+	if model.Method.IsNull() || model.Path.IsNull() {
 		resp.Diagnostics.AddError(
-			"Unexpected Import Identifier",
-			fmt.Sprintf("Expected import identifier with format: method,path. Got: %q", req.ID),
+			"Incomplete Model provided, please check the provided Base64 identifier...",
+			"The imported model is incomplete, it's expected to have at least the method and path informed.",
 		)
 		return
 	}
 
-	requestMethod := parts[0]
-	requestPath := parts[1]
+	if !model.IsResponseBodyJSON.IsUnknown() && model.IsResponseBodyJSON.ValueBool() &&
+		(model.ResponseBodyIDFilter.IsUnknown() || model.ResponseBodyIDFilter.IsNull()) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("response_id_filter"),
+			"Since the response is JSON, the filter must be provided.",
+			"When the expected answer is a JSON, the ID must be parsed in the state. "+
+				"Please provide a filter to extract the ID from the JSON response. Refer to the documentation for more information (https://github.com/ohler55/ojg).",
+		)
+	}
 
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("method"), requestMethod)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("path"), requestPath)...)
+	// save the model in the state
+	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
@@ -279,36 +328,149 @@ func (it *HTTPRequestResource) buildRequest(ctx context.Context, model HTTPReque
 	return request, nil
 }
 
-func isResponseSuccessful(response *http.Response) bool {
-	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+func updateResponseBody(model *HTTPRequestResourceModel, diagnostics *diag.Diagnostics) {
+	if model.IsResponseBodyJSON.ValueBool() {
+		var compactedJSON bytes.Buffer
+		err := json.Compact(&compactedJSON, []byte(model.ResponseBody.ValueString()))
+		if err != nil {
+			diagnostics.AddError("Error compacting JSON response body...", err.Error())
+			return
+		}
+		model.ResponseBody = types.StringValue(compactedJSON.String())
+	}
 }
 
-func updateModelWithID(model *HTTPRequestResourceModel, responseBody []byte) {
+func updateResponseBodyID(model *HTTPRequestResourceModel, responseBody []byte, diagnostics *diag.Diagnostics) {
+	model.ResponseBodyID = types.StringNull()
 	if model.IsResponseBodyJSON.ValueBool() {
 		var jsonResponse map[string]interface{}
 		if err := json.Unmarshal(responseBody, &jsonResponse); err == nil {
 			jsonPath, err := jp.ParseString(model.ResponseBodyIDFilter.ValueString())
 			if err == nil {
-				element := jsonPath.Get(jsonResponse)
+				element := jsonPath.First(jsonResponse)
 				if element != nil {
-					model.Id = types.StringValue(fmt.Sprintf("%s", element))
+					model.ResponseBodyID = types.StringValue(fmt.Sprintf("%v", element))
 					return
+				} else {
+					diagnostics.AddWarning("The JSON path provided didn't return any value...", "Please check the `response_body_id_filter` provided.")
 				}
+			} else {
+				diagnostics.AddWarning("It wasn't possible to parse the JSON path using the `response_body_id_filter` provided...", err.Error())
 			}
+		} else {
+			diagnostics.AddWarning("It wasn't possible to unmarshall response body to a JSON map reference...", err.Error())
 		}
 	}
-
-	model.Id = types.StringValue(fmt.Sprintf("%s,%s", model.Method.ValueString(), model.Path.ValueString()))
 }
 
-func updateModelWithResponse(ctx context.Context, model *HTTPRequestResourceModel, response *http.Response, responseBody []byte) {
-	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
-	model.ResponseBody = types.StringValue(string(responseBody))
-	//if model.IsResponseBodyJSON.ValueBool() {
-	//var diags diag.Diagnostics
-	//model.ResponseBodyJSON, diags = types.MapValueFrom(ctx, types.StringType, string(responseBody))
-	//if diags.HasError() {
-	//	tflog.Error(ctx, "Error parsing response body as JSON...", map[string]any{"error": diags})
-	//}
-	//}
+func updateResponseBodyJSON(model *HTTPRequestResourceModel, responseBody []byte, diagnostics *diag.Diagnostics) {
+	var diags diag.Diagnostics
+	model.ResponseBodyJSON, diags = types.MapValue(types.StringType, make(map[string]attr.Value))
+	diagnostics.Append(diags...)
+
+	if model.IsResponseBodyJSON.ValueBool() {
+		var result map[string]interface{}
+		err := json.Unmarshal(responseBody, &result)
+		if err != nil {
+			diagnostics.AddError("Error unmarshalling response body to a JSON map reference...", err.Error())
+		}
+
+		model.ResponseBodyJSON, diags = types.MapValueFrom(context.Background(), types.StringType, helpers.ConvertToStringMap(result))
+		diagnostics.Append(diags...)
+	}
+}
+
+func encodeModelToBase64(model *HTTPRequestResourceModel, diagnostics *diag.Diagnostics) string {
+	// Convert the Terraform model to a native Go struct
+	modelNative := HTTPRequestResourceModelNative{
+		Method: model.Method.ValueString(),
+		Path:   model.Path.ValueString(),
+
+		// all optional values are removed with "omitempty" tag
+		RequestBody:          model.RequestBody.ValueString(),
+		IsResponseBodyJSON:   model.IsResponseBodyJSON.ValueBool(),
+		ResponseBodyIDFilter: model.ResponseBodyIDFilter.ValueString(),
+		ResponseCode:         model.ResponseCode.ValueInt32(),
+		ResponseBody:         model.ResponseBody.ValueString(),
+		ResponseBodyID:       model.ResponseBodyID.ValueString(),
+	}
+	// avoid optional values being in the ID as empty (map)
+	if !model.Headers.IsNull() {
+		model.Headers.ElementsAs(context.Background(), &modelNative.Headers, false)
+	}
+	if !model.ResponseBodyJSON.IsNull() {
+		model.ResponseBodyJSON.ElementsAs(context.Background(), &modelNative.ResponseBodyJSON, false)
+	}
+
+	// Marshal the map to JSON
+	modelJSON, err := json.Marshal(modelNative)
+	if err != nil {
+		diagnostics.AddError("Error marshalling the model to JSON...", err.Error())
+		return ""
+	}
+
+	var compactedJSON bytes.Buffer
+	err = json.Compact(&compactedJSON, modelJSON)
+	if err != nil {
+		diagnostics.AddError("Error compacting JSON response body...", err.Error())
+		return ""
+	}
+
+	// Encode the JSON to base64
+	return base64.StdEncoding.EncodeToString(compactedJSON.Bytes())
+}
+
+func decodeBase64ToModel(modelEncoded string, diagnostics *diag.Diagnostics) *HTTPRequestResourceModel {
+	// Decode the base64 string
+	modelMap, err := base64.StdEncoding.DecodeString(modelEncoded)
+	if err != nil {
+		diagnostics.AddError(
+			"Invalid Import Identifier please check the Base64 encoding...",
+			fmt.Sprintf("Failed to decode Base64 identifier here is the specific cause: %v", err),
+		)
+		return nil
+	}
+
+	// Unmarshal the JSON to the intermediate struct
+	var nativeModel HTTPRequestResourceModelNative
+	if err = json.Unmarshal(modelMap, &nativeModel); err != nil {
+		diagnostics.AddError("Error unmarshalling the JSON to the intermediate struct...", err.Error())
+		return nil
+	}
+
+	model := &HTTPRequestResourceModel{
+		Method: types.StringValue(nativeModel.Method),
+		Path:   types.StringValue(nativeModel.Path),
+
+		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
+		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
+	}
+	// avoid optional values being in the state as empty (string)
+	if len(nativeModel.RequestBody) > 0 {
+		model.RequestBody = types.StringValue(nativeModel.RequestBody)
+	}
+	if len(nativeModel.ResponseBodyIDFilter) > 0 {
+		model.ResponseBodyIDFilter = types.StringValue(nativeModel.ResponseBodyIDFilter)
+	}
+	if len(nativeModel.ResponseBody) > 0 {
+		model.ResponseBody = types.StringValue(nativeModel.ResponseBody)
+	}
+	if len(nativeModel.ResponseBodyID) > 0 {
+		model.ResponseBodyID = types.StringValue(nativeModel.ResponseBodyID)
+	}
+	// avoid optional values being in the state as empty (map)
+	headers, diags := types.MapValueFrom(context.Background(), types.StringType, nativeModel.Headers)
+	if diags.HasError() {
+		diagnostics.Append(diags...)
+		return nil
+	}
+	model.Headers = headers
+	responseBodyJSON, diags := types.MapValueFrom(context.Background(), types.StringType, nativeModel.ResponseBodyJSON)
+	if diags.HasError() {
+		diagnostics.Append(diags...)
+		return nil
+	}
+	model.ResponseBodyJSON = responseBodyJSON
+
+	return model
 }

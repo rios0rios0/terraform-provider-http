@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -9,7 +12,14 @@ import (
 func TestAccHTTPRequestResource(t *testing.T) {
 	t.Parallel()
 
-	// delete testing automatically occurs in TestCase
+	var stateTest1 bytes.Buffer
+	_ = json.Compact(&stateTest1, []byte(`{
+		"method": "GET",
+		"path": "/posts/1",
+		"response_code": 200,
+		"response_body": "{\n  \"userId\": 1,\n  \"id\": 1,\n  \"title\": \"sunt aut facere repellat provident occaecati excepturi optio reprehenderit\",\n  \"body\": \"quia et suscipit\\nsuscipit recusandae consequuntur expedita et cum\\nreprehenderit molestiae ut ut quas totam\\nnostrum rerum est autem sunt rem eveniet architecto\"\n}"
+	}`))
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -36,14 +46,10 @@ resource "http_request" "test1" {
 				ResourceName:      "http_request.test1",
 				ImportState:       true,
 				ImportStateVerify: true,
-				// attributes that don't exist in the HTTP request. There's no value for them during import.
-				ImportStateVerifyIgnore: []string{
-					"response_code",
-					"response_body",
-				},
+				ImportStateId:     base64.StdEncoding.EncodeToString(stateTest1.Bytes()),
 			},
 
-			// update and read testing for GET method
+			// TODO: update and read testing for GET method (it's not completed)
 			{
 				Config: providerConfig + `
 resource "http_request" "test1" {
@@ -120,6 +126,7 @@ resource "http_request" "test2" {
 			},
 		},
 	})
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -131,7 +138,7 @@ resource "http_request" "test3" {
   path   = "/posts"
   request_body = "{ \"test\": \"test body\" }"
   is_response_body_json = true
-  response_body_id_filter = "$.test"
+  response_body_id_filter = "$.id"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -139,12 +146,12 @@ resource "http_request" "test3" {
 					resource.TestCheckResourceAttr("http_request.test3", "path", "/posts"),
 					resource.TestCheckResourceAttr("http_request.test3", "request_body", "{ \"test\": \"test body\" }"),
 					resource.TestCheckResourceAttr("http_request.test3", "is_response_body_json", "true"),
-					resource.TestCheckResourceAttr("http_request.test3", "response_body_id_filter", "$.test"),
+					resource.TestCheckResourceAttr("http_request.test3", "response_body_id_filter", "$.id"),
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttr("http_request.test3", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test3", "id", "101"),
 					resource.TestCheckResourceAttr("http_request.test3", "response_code", "201"),
 					resource.TestCheckResourceAttrSet("http_request.test3", "response_body"),
-					resource.TestCheckResourceAttrSet("http_request.test3", "response_body_json"),
+					resource.TestCheckResourceAttrSet("http_request.test3", "response_body_json.id"),
 				),
 			},
 
@@ -153,6 +160,8 @@ resource "http_request" "test3" {
 				ResourceName:      "http_request.test3",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// ImportStateId is set to 101 in the state file because of external data source.
+				ImportStateId: "101",
 				// attributes that don't exist in the HTTP request. There's no value for them during import.
 				ImportStateVerifyIgnore: []string{
 					"is_response_body_json",
@@ -171,7 +180,7 @@ resource "http_request" "test3" {
   path   = "/posts"
   request_body = "{ \"test\": \"test body 2\" }"
   is_response_body_json = true
-  response_body_id_filter = "$.test"
+  response_body_id_filter = "$.id"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -179,14 +188,16 @@ resource "http_request" "test3" {
 					resource.TestCheckResourceAttr("http_request.test3", "path", "/posts"),
 					resource.TestCheckResourceAttr("http_request.test3", "request_body", "{ \"test\": \"test body 2\" }"),
 					resource.TestCheckResourceAttr("http_request.test3", "is_response_body_json", "true"),
-					resource.TestCheckResourceAttr("http_request.test3", "response_body_id_filter", "$.test"),
+					resource.TestCheckResourceAttr("http_request.test3", "response_body_id_filter", "$.id"),
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttr("http_request.test3", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test3", "id", "101"),
 					resource.TestCheckResourceAttr("http_request.test3", "response_code", "201"),
 					resource.TestCheckResourceAttrSet("http_request.test3", "response_body"),
-					resource.TestCheckResourceAttrSet("http_request.test3", "response_body_json"),
+					resource.TestCheckResourceAttrSet("http_request.test3", "response_body_json.id"),
 				),
 			},
 		},
 	})
+
+	// delete testing automatically occurs in TestCase
 }

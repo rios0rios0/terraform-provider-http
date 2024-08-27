@@ -16,6 +16,16 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added JSON handling to perform better operations with the response
+
+### Changed
+
+- corrected basic testing with basic checking with 3 cases
+- corrected documentation to have examples in the official page
+- corrected the structure to be more readable using DDD
+
 ## [1.0.0] - 2024-08-24
 
 ### Changed
