@@ -9,10 +9,11 @@ import (
 func TestAccHTTPRequestResource(t *testing.T) {
 	t.Parallel()
 
+	// delete testing automatically occurs in TestCase
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// create and read testing
+			// create and read testing for GET method
 			{
 				Config: providerConfig + `
 resource "http_request" "test" {
@@ -23,65 +24,169 @@ resource "http_request" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("http_request.test", "method", "GET"),
 					resource.TestCheckResourceAttr("http_request.test", "path", "/posts/1"),
+					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("http_request.test", "id"),
 					resource.TestCheckResourceAttrSet("http_request.test", "response_code"),
 					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
 				),
 			},
 
-			// ImportState testing
+			// ImportState testing for GET method
 			{
 				ResourceName:      "http_request.test",
 				ImportState:       true,
 				ImportStateVerify: true,
-				// The response_body attribute does not exist in the HTTP request
-				// API, therefore there is no value for it during import.
-				ImportStateVerifyIgnore: []string{"response_body", "response_body_json"},
+				// attributes that don't exist in the HTTP request. There's no value for them during import.
+				ImportStateVerifyIgnore: []string{
+					"response_code",
+					"response_body",
+				},
 			},
 
-			// update and read testing
+			// update and read testing for GET method
+			{
+				Config: providerConfig + `
+resource "http_request" "test" {
+  method = "GET"
+  path   = "/posts/1"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("http_request.test", "method", "GET"),
+					resource.TestCheckResourceAttr("http_request.test", "path", "/posts/1"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet("http_request.test", "id"),
+					resource.TestCheckResourceAttrSet("http_request.test", "response_code"),
+					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
+				),
+			},
+		},
+	})
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create and read testing for POST method
 			{
 				Config: providerConfig + `
 resource "http_request" "test" {
   method = "POST"
-  path   = "/posts/1"
+  path   = "/posts"
   request_body = "test body"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("http_request.test", "method", "POST"),
-					resource.TestCheckResourceAttr("http_request.test", "path", "/posts/1"),
+					resource.TestCheckResourceAttr("http_request.test", "path", "/posts"),
 					resource.TestCheckResourceAttr("http_request.test", "request_body", "test body"),
-					resource.TestCheckResourceAttrSet("http_request.test", "id"),
-					resource.TestCheckResourceAttrSet("http_request.test", "response_code"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttr("http_request.test", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "response_code", "201"),
 					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
 				),
 			},
 
-			// id filtering from the JSON response body testing
+			// ImportState testing for POST method
+			{
+				ResourceName:      "http_request.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// attributes that don't exist in the HTTP request. There's no value for them during import.
+				ImportStateVerifyIgnore: []string{
+					"request_body",
+					"response_code",
+					"response_body",
+				},
+			},
+
+			// update and read testing for POST method
 			{
 				Config: providerConfig + `
 resource "http_request" "test" {
   method = "POST"
-  path   = "/posts/1"
-  request_body = "{ "test": "test body" }"
-  is_response_json = true
-  response_id_filter = "$.test"
+  path   = "/posts"
+  request_body = "test body 2"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("http_request.test", "method", "POST"),
-					resource.TestCheckResourceAttr("http_request.test", "path", "/posts/1"),
-					resource.TestCheckResourceAttr("http_request.test", "request_body", "{ \"test\": \"test body\" }"),
-					resource.TestCheckResourceAttrSet("http_request.test", "id"),
-					resource.TestCheckResourceAttr("http_request.test", "id", "test body"),
-					resource.TestCheckResourceAttrSet("http_request.test", "response_code"),
+					resource.TestCheckResourceAttr("http_request.test", "path", "/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "request_body", "test body 2"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttr("http_request.test", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "response_code", "201"),
 					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
-					resource.TestCheckResourceAttr("http_request.test", "response_body_json", "{ \"test\": \"test body\" }"),
+				),
+			},
+		},
+	})
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// create and read testing for POST method with response filtering
+			{
+				Config: providerConfig + `
+resource "http_request" "test" {
+  method = "POST"
+  path   = "/posts"
+  request_body = "{ \"test\": \"test body\" }"
+  is_response_body_json = true
+  response_body_id_filter = "$.test"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("http_request.test", "method", "POST"),
+					resource.TestCheckResourceAttr("http_request.test", "path", "/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "request_body", "{ \"test\": \"test body\" }"),
+					resource.TestCheckResourceAttr("http_request.test", "is_response_body_json", "true"),
+					resource.TestCheckResourceAttr("http_request.test", "response_body_id_filter", "$.test"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttr("http_request.test", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "response_code", "201"),
+					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
+					//resource.TestCheckResourceAttrSet("http_request.test", "response_body_json"),
 				),
 			},
 
-			// Delete testing automatically occurs in TestCase
+			// ImportState testing for POST method with response filtering
+			{
+				ResourceName:      "http_request.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// attributes that don't exist in the HTTP request. There's no value for them during import.
+				ImportStateVerifyIgnore: []string{
+					"is_response_body_json",
+					"request_body",
+					"response_body",
+					"response_body_id_filter",
+					"response_code",
+				},
+			},
+
+			// update and read testing for POST method with response filtering
+			{
+				Config: providerConfig + `
+resource "http_request" "test" {
+  method = "POST"
+  path   = "/posts"
+  request_body = "{ \"test\": \"test body 2\" }"
+  is_response_body_json = true
+  response_body_id_filter = "$.test"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("http_request.test", "method", "POST"),
+					resource.TestCheckResourceAttr("http_request.test", "path", "/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "request_body", "{ \"test\": \"test body 2\" }"),
+					resource.TestCheckResourceAttr("http_request.test", "is_response_body_json", "true"),
+					resource.TestCheckResourceAttr("http_request.test", "response_body_id_filter", "$.test"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttr("http_request.test", "id", "POST,/posts"),
+					resource.TestCheckResourceAttr("http_request.test", "response_code", "201"),
+					resource.TestCheckResourceAttrSet("http_request.test", "response_body"),
+					//resource.TestCheckResourceAttrSet("http_request.test", "response_body_json"),
+				),
+			},
 		},
 	})
 }

@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -65,29 +66,29 @@ func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			// parameters
 			"method": schema.StringAttribute{
-				MarkdownDescription: "HTTP method",
 				Required:            true,
+				MarkdownDescription: "HTTP method",
 			},
 			"path": schema.StringAttribute{
-				MarkdownDescription: "Path for the HTTP request",
 				Required:            true,
+				MarkdownDescription: "Path for the HTTP request",
 			},
 			"headers": schema.MapAttribute{
-				MarkdownDescription: "HTTP headers",
 				Optional:            true,
+				MarkdownDescription: "HTTP headers",
 				ElementType:         types.StringType,
 			},
 			"request_body": schema.StringAttribute{
-				MarkdownDescription: "Request body",
 				Optional:            true,
+				MarkdownDescription: "Request body",
 			},
 			"is_response_body_json": schema.BoolAttribute{
-				MarkdownDescription: "Indicates if the response is JSON",
 				Optional:            true,
+				MarkdownDescription: "Indicates if the response is JSON",
 			},
 			"response_body_id_filter": schema.StringAttribute{
-				MarkdownDescription: "Filter to extract JSON data",
 				Optional:            true,
+				MarkdownDescription: "Filter to extract JSON data",
 			},
 
 			// state
@@ -100,17 +101,17 @@ func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 			},
 			"response_code": schema.Int32Attribute{
-				MarkdownDescription: "Response code",
 				Computed:            true,
+				MarkdownDescription: "Response code",
 			},
 			"response_body": schema.StringAttribute{
-				MarkdownDescription: "Response body",
 				Computed:            true,
+				MarkdownDescription: "Response body",
 			},
 			//"response_body_json": schema.MapAttribute{
-			//	MarkdownDescription: "Response body as JSON",
 			//	Computed:            true,
 			//	ElementType:         types.StringType,
+			//	MarkdownDescription: "Response body as JSON",
 			//},
 		},
 	}
@@ -137,7 +138,7 @@ func (it *HTTPRequestResource) ValidateConfig(ctx context.Context, req resource.
 func (it *HTTPRequestResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	tflog.Info(ctx, "Configuring resource to use HTTP client...")
 
-	// Add a nil check when handling ProviderData because Terraform
+	// added a nil check when handling ProviderData because Terraform
 	// sets that data after it calls the ConfigureProvider RPC.
 	if req.ProviderData == nil {
 		return
@@ -196,8 +197,8 @@ func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	updateModelWithResponse(ctx, &model, response, responseBody)
 	updateModelWithID(&model, responseBody)
+	updateModelWithResponse(ctx, &model, response, responseBody)
 
 	diags := resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
@@ -239,7 +240,22 @@ func (it *HTTPRequestResource) Delete(ctx context.Context, req resource.DeleteRe
 }
 
 func (it *HTTPRequestResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	parts := strings.Split(req.ID, ",")
+
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Unexpected Import Identifier",
+			fmt.Sprintf("Expected import identifier with format: method,path. Got: %q", req.ID),
+		)
+		return
+	}
+
+	requestMethod := parts[0]
+	requestPath := parts[1]
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("method"), requestMethod)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("path"), requestPath)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
 func (it *HTTPRequestResource) buildRequest(ctx context.Context, model HTTPRequestResourceModel, endpoint string) (*http.Request, error) {
@@ -267,16 +283,6 @@ func isResponseSuccessful(response *http.Response) bool {
 	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
 }
 
-func updateModelWithResponse(ctx context.Context, model *HTTPRequestResourceModel, response *http.Response, responseBody []byte) {
-	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
-	model.ResponseBody = types.StringValue(string(responseBody))
-	// TODO: this error should be handled
-	//model.ResponseBodyJSON, _ = types.MapValueFrom(ctx, types.StringType, string(responseBody))
-
-	//if model.IsResponseBodyJSON.ValueBool() {
-	//}
-}
-
 func updateModelWithID(model *HTTPRequestResourceModel, responseBody []byte) {
 	if model.IsResponseBodyJSON.ValueBool() {
 		var jsonResponse map[string]interface{}
@@ -291,5 +297,18 @@ func updateModelWithID(model *HTTPRequestResourceModel, responseBody []byte) {
 			}
 		}
 	}
-	model.Id = types.StringValue(fmt.Sprintf("%s-%v", model.Method.ValueString(), model.Path.ValueString()))
+
+	model.Id = types.StringValue(fmt.Sprintf("%s,%s", model.Method.ValueString(), model.Path.ValueString()))
+}
+
+func updateModelWithResponse(ctx context.Context, model *HTTPRequestResourceModel, response *http.Response, responseBody []byte) {
+	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
+	model.ResponseBody = types.StringValue(string(responseBody))
+	//if model.IsResponseBodyJSON.ValueBool() {
+	//var diags diag.Diagnostics
+	//model.ResponseBodyJSON, diags = types.MapValueFrom(ctx, types.StringType, string(responseBody))
+	//if diags.HasError() {
+	//	tflog.Error(ctx, "Error parsing response body as JSON...", map[string]any{"error": diags})
+	//}
+	//}
 }
