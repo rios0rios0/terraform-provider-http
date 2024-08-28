@@ -307,7 +307,7 @@ func (it *HTTPRequestResource) buildRequest(
 	}
 	request, err := http.NewRequestWithContext(ctx, model.Method.ValueString(), endpoint, requestBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w", err)
 	}
 
 	for key, value := range model.Headers.Elements() {
@@ -362,7 +362,7 @@ func unmarshalJSON(responseBody []byte, diagnostics *diag.Diagnostics) (map[stri
 	var jsonResponse map[string]interface{}
 	if err := json.Unmarshal(responseBody, &jsonResponse); err != nil {
 		diagnostics.AddWarning("It wasn't possible to unmarshall response body to a JSON map reference...", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("%w", err)
 	}
 	return jsonResponse, nil
 }
@@ -372,7 +372,7 @@ func parseJSONPath(filter string, diagnostics *diag.Diagnostics) (jp.Expr, error
 	if err != nil {
 		diagnostics.AddWarning(
 			"It wasn't possible to parse the JSON path using the `response_body_id_filter` provided...", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("%w", err)
 	}
 	return jsonPath, nil
 }

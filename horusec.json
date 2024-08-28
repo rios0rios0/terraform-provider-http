@@ -1,4 +1,6 @@
 {
   "horusecCliFalsePositiveHashes": [],
-  "horusecCliRiskAcceptHashes": []
+  "horusecCliRiskAcceptHashes": [
+    "28d5803bb27bd235d4ea040e6bc39657de41d69449d90a8b24d229e1a98e3c57"
+  ]
 }
