@@ -5,14 +5,23 @@ subcategory: ""
 description: |-
   The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.
   
+  terraform {
+    required_providers {
+      http = {
+        source = "rios0rios0/http"
+      }
+    }
+  }
+  
   provider "http" {
     url = "https://jsonplaceholder.typicode.com"
     basic_auth = {
-  	username = "something"
-  	password = "***"
+      username = "something"
+      password = "***"
     }
     ignore_tls = true
   }
+  
   
   See complete example at the GitHub repository https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf.
 ---
@@ -22,14 +31,23 @@ description: |-
 The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.
 
 ```hcl
+terraform {
+  required_providers {
+    http = {
+      source = "rios0rios0/http"
+    }
+  }
+}
+
 provider "http" {
   url = "https://jsonplaceholder.typicode.com"
   basic_auth = {
-	username = "something"
-	password = "***"
+    username = "something"
+    password = "***"
   }
   ignore_tls = true
 }
+
 ```
 
 See complete example at the [GitHub repository](https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).

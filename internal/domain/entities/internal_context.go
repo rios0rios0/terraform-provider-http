@@ -15,6 +15,7 @@ func NewInternalContext(ignoreTLS bool, config *Configuration) *InternalContext 
 	if ignoreTLS {
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{
+				//nolint:gosec // purposefully ignore TLS verification according the flag
 				InsecureSkipVerify: true,
 			},
 		}

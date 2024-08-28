@@ -26,6 +26,7 @@ description: |-
     })
   }
   
+  
   See complete example at the GitHub repository https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf.
 ---
 
@@ -54,6 +55,7 @@ resource "http_request" "example2" {
     anything = http_request.example1.response_body_json["id"]
   })
 }
+
 ```
 
 See complete example at the [GitHub repository](https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).

@@ -2,6 +2,10 @@ package provider
 
 import (
 	"context"
+	"os"
+
+	"github.com/rios0rios0/terraform-provider-http/examples"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -12,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
 	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
-	"os"
 )
 
 // Ensure HTTPProvider satisfies various provider interfaces.
@@ -48,65 +51,81 @@ func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
-		MarkdownDescription: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.\n\n" +
-			"```hcl\n" +
-			`provider "http" {
-  url = "https://jsonplaceholder.typicode.com"
-  basic_auth = {
-	username = "something"
-	password = "***"
-  }
-  ignore_tls = true
-}` +
-			"\n```\n\n" +
-			"See complete example at the [GitHub repository](https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).",
+		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
+			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
+		MarkdownDescription: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
+			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.\n\n" +
+			"```hcl\n" + examples.GetHTTPProviderExample() + "\n```\n\n" +
+			"See complete example at the [GitHub repository]" +
+			"(https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
-				Description:         "The base URL for all HTTP requests made by this provider. This URL serves as the root endpoint for the Web endpoint that the provider will interact with. It is a required attribute and must be specified to ensure proper communication with the target.",
-				MarkdownDescription: "The base URL for all HTTP requests made by this provider. This URL serves as the root endpoint for the Web endpoint that the provider will interact with. It is a required attribute and must be specified to ensure proper communication with the target.",
-				Required:            true,
+				Description: "The base URL for all HTTP requests made by this provider. " +
+					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
+					"It is a required attribute and must be specified to ensure proper communication with the target.",
+				MarkdownDescription: "The base URL for all HTTP requests made by this provider. " +
+					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
+					"It is a required attribute and must be specified to ensure proper communication with the target.",
+				Required: true,
 			},
 			"basic_auth": schema.SingleNestedAttribute{
-				Description:         "Credentials for basic authentication. This attribute allows you to specify the username and password required for basic HTTP authentication. It is optional and should be used when the target Web endpoint requires basic authentication for access.",
-				MarkdownDescription: "Credentials for basic authentication. This attribute allows you to specify the username and password required for basic HTTP authentication. It is optional and should be used when the target Web endpoint requires basic authentication for access.",
-				Optional:            true,
+				Description: "Credentials for basic authentication. " +
+					"This attribute allows you to specify the username and password required for basic HTTP authentication. " +
+					"It is optional and should be used when the target Web endpoint requires basic authentication for access.",
+				MarkdownDescription: "Credentials for basic authentication. " +
+					"This attribute allows you to specify the username and password required for basic HTTP authentication. " +
+					"It is optional and should be used when the target Web endpoint requires basic authentication for access.",
+				Optional: true,
 				Attributes: map[string]schema.Attribute{
 					"username": schema.StringAttribute{
-						Description:         "The username for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
-						MarkdownDescription: "The username for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
-						Required:            true,
+						Description: "The username for basic authentication. " +
+							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
+						MarkdownDescription: "The username for basic authentication. " +
+							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
+						Required: true,
 					},
 					"password": schema.StringAttribute{
-						Description:         "The password for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used. The password is marked as sensitive to ensure it is not exposed in logs or state files.",
-						MarkdownDescription: "The password for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used. The password is marked as sensitive to ensure it is not exposed in logs or state files.",
-						Required:            true,
-						Sensitive:           true,
+						Description: "The password for basic authentication. " +
+							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used. " +
+							"The password is marked as sensitive to ensure it is not exposed in logs or state files.",
+						MarkdownDescription: "The password for basic authentication. " +
+							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used. " +
+							"The password is marked as sensitive to ensure it is not exposed in logs or state files.",
+						Required:  true,
+						Sensitive: true,
 					},
 				},
 			},
 			"ignore_tls": schema.BoolAttribute{
-				Description:         "A boolean flag to indicate whether TLS certificate verification should be ignored. This is useful for testing purposes or when interacting with APIs that use self-signed certificates. It is optional and defaults to `false`.",
-				MarkdownDescription: "A boolean flag to indicate whether TLS certificate verification should be ignored. This is useful for testing purposes or when interacting with APIs that use self-signed certificates. It is optional and defaults to `false`.",
-				Optional:            true,
+				Description: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
+					"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
+					"It is optional and defaults to `false`.",
+				MarkdownDescription: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
+					"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
+					"It is optional and defaults to `false`.",
+				Optional: true,
 			},
 		},
 	}
 }
 
-func (it *HTTPProvider) ValidateConfig(ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse) {
+func (it *HTTPProvider) ValidateConfig(
+	ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse,
+) {
 	var model HTTPProviderModel
-	helper := helpers.NewProviderHelper()
-	if !helper.RetrieveValidateConfigRequest(ctx, req, resp, &model) {
+	if !helpers.RetrieveProviderValidateConfigRequest(ctx, req, resp, &model) {
 		return
 	}
+
+	const detailMessage = "Either target apply the source of the value first, " +
+		"set the value statically in the configuration, "
 
 	if model.URL.IsUnknown() || model.URL.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
 			"The provider cannot create the HTTP client as there is an unknown/null configuration value for the URL. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the PROVIDER_HTTP_URL environment variable.",
+				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}
 	if !model.BasicAuth.IsUnknown() || !model.BasicAuth.IsNull() {
@@ -115,7 +134,7 @@ func (it *HTTPProvider) ValidateConfig(ctx context.Context, req provider.Validat
 				path.Root("basic_auth").AtName("username"),
 				"Unknown username for HTTP client",
 				"The provider cannot create the HTTP client as there is an unknown/null configuration value for the username. "+
-					"Either target apply the source of the value first, set the value statically in the configuration, or use the PROVIDER_HTTP_USERNAME environment variable.",
+					detailMessage+"or use the PROVIDER_HTTP_USERNAME environment variable.",
 			)
 		}
 		if model.BasicAuth.Attributes()["password"].IsUnknown() {
@@ -123,18 +142,19 @@ func (it *HTTPProvider) ValidateConfig(ctx context.Context, req provider.Validat
 				path.Root("basic_auth").AtName("password"),
 				"Unknown password for HTTP client",
 				"The provider cannot create the HTTP client as there is an unknown/null configuration value for the password. "+
-					"Either target apply the source of the value first, set the value statically in the configuration, or use the PROVIDER_HTTP_PASSWORD environment variable.",
+					detailMessage+"or use the PROVIDER_HTTP_PASSWORD environment variable.",
 			)
 		}
 	}
 }
 
-func (it *HTTPProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (it *HTTPProvider) Configure(
+	ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse,
+) {
 	tflog.Info(ctx, "Configuring HTTP client...")
 
 	var model HTTPProviderModel
-	helper := helpers.NewProviderHelper()
-	if !helper.RetrieveConfigureRequest(ctx, req, resp, &model) {
+	if !helpers.RetrieveProviderConfigureRequest(ctx, req, resp, &model) {
 		return
 	}
 
