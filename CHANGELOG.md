@@ -8,8 +8,9 @@ When a new release is proposed:
 
 1. Create a new branch `bump/x.x.x` (this isn't a long-lived branch!!!);
 2. The Unreleased section on `CHANGELOG.md` gets a version number and date;
-3. Open a Pull Request with the bump version changes targeting the `main` branch;
-4. When the Pull Request is merged, a new git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
+3. Update the `version` constant in the `main.go` file;
+4. Open a Pull Request with the bump version changes targeting the `main` branch;
+5. When the Pull Request is merged, a new git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
 
 Releases to productive environments should run from a tagged version.
 Exceptions are acceptable depending on the circumstances (critical bug fixes that can be cherry-picked, etc.).
@@ -26,6 +27,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 - corrected basic testing with basic checking with 3 cases
 - corrected documentation to have examples in the official page
 - corrected the structure to be more readable using DDD
+- changed all the code styling to follow the standard proposed at [pipelines](https://github.com/rios0rios0/pipelines/blob/main/global/scripts/golangci-lint/.golangci.yml) repository
 
 ## [1.0.0] - 2024-08-24
 
