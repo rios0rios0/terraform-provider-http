@@ -119,7 +119,7 @@ func (it *HTTPProvider) ValidateConfig(
 	const detailMessage = "Either target apply the source of the value first, " +
 		"set the value statically in the configuration, "
 
-	if model.URL.IsUnknown() || model.URL.IsNull() {
+	if model.URL.IsUnknown() && model.URL.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
@@ -127,7 +127,7 @@ func (it *HTTPProvider) ValidateConfig(
 				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}
-	if !model.BasicAuth.IsUnknown() || !model.BasicAuth.IsNull() {
+	if !model.BasicAuth.IsUnknown() && !model.BasicAuth.IsNull() {
 		if model.BasicAuth.Attributes()["username"].IsUnknown() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("basic_auth").AtName("username"),

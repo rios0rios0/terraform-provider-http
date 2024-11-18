@@ -17,6 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [1.1.1] - 2024-11-18
+
+### Fixed
+
+- fixed null pointer error on the provider validation method
+
 ## [1.1.0] - 2024-11-18
 
 ### Added
