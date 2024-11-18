@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [1.1.0] - 2024-11-18
+
 ### Added
 
 - added JSON handling to perform better operations with the response

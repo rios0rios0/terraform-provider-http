@@ -311,7 +311,10 @@ func (it *HTTPRequestResource) buildRequest(
 	}
 
 	for key, value := range model.Headers.Elements() {
-		request.Header.Set(key, value.(types.String).ValueString())
+		if !value.IsUnknown() && !value.IsNull() {
+			//nolint:errcheck // checked already via SDK state (line before)
+			request.Header.Set(key, value.(types.String).ValueString())
+		}
 	}
 
 	if it.internal.Config.HasAuthentication() {
