@@ -24,10 +24,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Changed
 
+- changed all the code styling to follow the standard proposed at [pipelines](https://github.com/rios0rios0/pipelines/blob/main/global/scripts/golangci-lint/.golangci.yml) repository
 - corrected basic testing with basic checking with 3 cases
 - corrected documentation to have examples in the official page
 - corrected the structure to be more readable using DDD
-- changed all the code styling to follow the standard proposed at [pipelines](https://github.com/rios0rios0/pipelines/blob/main/global/scripts/golangci-lint/.golangci.yml) repository
 
 ## [1.0.0] - 2024-08-24
 
