@@ -167,9 +167,11 @@ func (it *HTTPProvider) Configure(
 	}
 	if !model.BasicAuth.IsNull() { // double-checking because it is optional
 		if username == "" {
+			//nolint:errcheck // it was checked before in the validation
 			username = model.BasicAuth.Attributes()["username"].(types.String).ValueString()
 		}
 		if password == "" {
+			//nolint:errcheck // it was checked before in the validation
 			password = model.BasicAuth.Attributes()["password"].(types.String).ValueString()
 		}
 	}
