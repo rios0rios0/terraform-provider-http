@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added more testing to cover cases in the provider configuration
+
 ## [1.1.1] - 2024-11-18
 
 ### Fixed

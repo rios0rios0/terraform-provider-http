@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/rios0rios0/terraform-provider-http/examples"
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
-	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
 )
 
 // Ensure HTTPProvider satisfies various provider interfaces.
@@ -43,13 +42,8 @@ func New(version string) func() provider.Provider {
 	}
 }
 
-func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "http"
-	resp.Version = it.version
-}
-
-func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func GetSchema() schema.Schema {
+	return schema.Schema{
 		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
 			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
 		MarkdownDescription: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
@@ -108,18 +102,30 @@ func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	}
 }
 
+func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "http"
+	resp.Version = it.version
+}
+
+func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = GetSchema()
+}
+
 func (it *HTTPProvider) ValidateConfig(
 	ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse,
 ) {
 	var model HTTPProviderModel
-	if !helpers.RetrieveProviderValidateConfigRequest(ctx, req, resp, &model) {
+
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	const detailMessage = "Either target apply the source of the value first, " +
 		"set the value statically in the configuration, "
 
-	if model.URL.IsUnknown() && model.URL.IsNull() {
+	if model.URL.IsUnknown() || model.URL.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
@@ -127,8 +133,10 @@ func (it *HTTPProvider) ValidateConfig(
 				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}
+
 	if !model.BasicAuth.IsUnknown() && !model.BasicAuth.IsNull() {
-		if model.BasicAuth.Attributes()["username"].IsUnknown() {
+		username := model.BasicAuth.Attributes()["username"]
+		if username.IsUnknown() || username.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("basic_auth").AtName("username"),
 				"Unknown username for HTTP client",
@@ -136,7 +144,9 @@ func (it *HTTPProvider) ValidateConfig(
 					detailMessage+"or use the PROVIDER_HTTP_USERNAME environment variable.",
 			)
 		}
-		if model.BasicAuth.Attributes()["password"].IsUnknown() {
+
+		password := model.BasicAuth.Attributes()["password"]
+		if password.IsUnknown() || password.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("basic_auth").AtName("password"),
 				"Unknown password for HTTP client",
@@ -153,7 +163,10 @@ func (it *HTTPProvider) Configure(
 	tflog.Info(ctx, "Configuring HTTP client...")
 
 	var model HTTPProviderModel
-	if !helpers.RetrieveProviderConfigureRequest(ctx, req, resp, &model) {
+
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
