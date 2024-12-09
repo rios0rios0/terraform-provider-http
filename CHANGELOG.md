@@ -17,9 +17,16 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [1.2.0] - 2024-12-09
+
 ### Added
 
 - added more testing to cover cases in the provider configuration
+
+### Changed
+
+- upgraded all dependencies to the latest version
+- upgraded to GoLang version 1.23.4
 
 ## [1.1.1] - 2024-11-18
 
