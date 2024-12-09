@@ -111,6 +111,7 @@ func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = GetSchema()
 }
 
+// ValidateConfig At this point "IsUnknown()" is not useful because it is always true in the real apply.
 func (it *HTTPProvider) ValidateConfig(
 	ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse,
 ) {
@@ -125,32 +126,32 @@ func (it *HTTPProvider) ValidateConfig(
 	const detailMessage = "Either target apply the source of the value first, " +
 		"set the value statically in the configuration, "
 
-	if model.URL.IsUnknown() || model.URL.IsNull() {
+	if model.URL.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
-			"The provider cannot create the HTTP client as there is an unknown/null configuration value for the URL. "+
+			"The provider cannot create the HTTP client as there is a null configuration value for the URL. "+
 				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}
 
-	if !model.BasicAuth.IsUnknown() && !model.BasicAuth.IsNull() {
+	if !model.BasicAuth.IsNull() {
 		username := model.BasicAuth.Attributes()["username"]
-		if username.IsUnknown() || username.IsNull() {
+		if username.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("basic_auth").AtName("username"),
 				"Unknown username for HTTP client",
-				"The provider cannot create the HTTP client as there is an unknown/null configuration value for the username. "+
+				"The provider cannot create the HTTP client as there is a null configuration value for the username. "+
 					detailMessage+"or use the PROVIDER_HTTP_USERNAME environment variable.",
 			)
 		}
 
 		password := model.BasicAuth.Attributes()["password"]
-		if password.IsUnknown() || password.IsNull() {
+		if password.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("basic_auth").AtName("password"),
 				"Unknown password for HTTP client",
-				"The provider cannot create the HTTP client as there is an unknown/null configuration value for the password. "+
+				"The provider cannot create the HTTP client as there is a null configuration value for the password. "+
 					detailMessage+"or use the PROVIDER_HTTP_PASSWORD environment variable.",
 			)
 		}
