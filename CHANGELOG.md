@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [1.2.1] - 2024-12-09
+
 ### Removed
 
 - removed `IsUnknown` from inside the `ValidateConfig` method to avoid issues in to apply without previous state
