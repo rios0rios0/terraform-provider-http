@@ -2,22 +2,22 @@ package builders
 
 import "github.com/hashicorp/terraform-plugin-go/tftypes"
 
-type ObjectTypeBuilder struct {
+type ProviderTypeBuilder struct {
 	attributeTypes map[string]tftypes.Type
 }
 
-func NewObjectTypeBuilder() *ObjectTypeBuilder {
-	return &ObjectTypeBuilder{
+func NewProviderTypeBuilder() *ProviderTypeBuilder {
+	return &ProviderTypeBuilder{
 		attributeTypes: make(map[string]tftypes.Type),
 	}
 }
 
-func (b *ObjectTypeBuilder) WithURL() *ObjectTypeBuilder {
+func (b *ProviderTypeBuilder) WithURL() *ProviderTypeBuilder {
 	b.attributeTypes["url"] = tftypes.String
 	return b
 }
 
-func (b *ObjectTypeBuilder) WithUsername() *ObjectTypeBuilder {
+func (b *ProviderTypeBuilder) WithUsername() *ProviderTypeBuilder {
 	if basicAuth, ok := b.attributeTypes["basic_auth"]; ok {
 		//nolint:errcheck // no need to check since it's covered by the test
 		basicAuthType := basicAuth.(tftypes.Object)
@@ -33,7 +33,7 @@ func (b *ObjectTypeBuilder) WithUsername() *ObjectTypeBuilder {
 	return b
 }
 
-func (b *ObjectTypeBuilder) WithPassword() *ObjectTypeBuilder {
+func (b *ProviderTypeBuilder) WithPassword() *ProviderTypeBuilder {
 	if basicAuth, ok := b.attributeTypes["basic_auth"]; ok {
 		//nolint:errcheck // no need to check since it's covered by the test
 		basicAuthType := basicAuth.(tftypes.Object)
@@ -49,12 +49,12 @@ func (b *ObjectTypeBuilder) WithPassword() *ObjectTypeBuilder {
 	return b
 }
 
-func (b *ObjectTypeBuilder) WithIgnoreTLS() *ObjectTypeBuilder {
+func (b *ProviderTypeBuilder) WithIgnoreTLS() *ProviderTypeBuilder {
 	b.attributeTypes["ignore_tls"] = tftypes.Bool
 	return b
 }
 
-func (b *ObjectTypeBuilder) Build() tftypes.Object {
+func (b *ProviderTypeBuilder) Build() tftypes.Object {
 	return tftypes.Object{
 		AttributeTypes: b.attributeTypes,
 	}

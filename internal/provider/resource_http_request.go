@@ -74,14 +74,8 @@ func NewHTTPRequestResource() resource.Resource {
 	return &HTTPRequestResource{}
 }
 
-func (it *HTTPRequestResource) Metadata(
-	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
-) {
-	resp.TypeName = req.ProviderTypeName + "_request"
-}
-
-func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func GetHTTPRequestResourceSchema() schema.Schema {
+	return schema.Schema{
 		Description: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
 		MarkdownDescription: "Represents an HTTP request resource, allowing configuration of various " +
@@ -123,6 +117,16 @@ func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaReques
 					"using dot notation (e.g., \"response_body_json[\"nested.item.value\"]\")."),
 		},
 	}
+}
+
+func (it *HTTPRequestResource) Metadata(
+	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_request"
+}
+
+func (it *HTTPRequestResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = GetHTTPRequestResourceSchema()
 }
 
 func (it *HTTPRequestResource) ValidateConfig(

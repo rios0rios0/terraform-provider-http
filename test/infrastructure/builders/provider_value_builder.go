@@ -2,22 +2,22 @@ package builders
 
 import "github.com/hashicorp/terraform-plugin-go/tftypes"
 
-type ObjectValueBuilder struct {
+type ProviderValueBuilder struct {
 	values map[string]tftypes.Value
 }
 
-func NewObjectValueBuilder() *ObjectValueBuilder {
-	return &ObjectValueBuilder{
+func NewProviderValueBuilder() *ProviderValueBuilder {
+	return &ProviderValueBuilder{
 		values: make(map[string]tftypes.Value),
 	}
 }
 
-func (b *ObjectValueBuilder) WithURL(url string) *ObjectValueBuilder {
+func (b *ProviderValueBuilder) WithURL(url string) *ProviderValueBuilder {
 	b.values["url"] = tftypes.NewValue(tftypes.String, url)
 	return b
 }
 
-func (b *ObjectValueBuilder) WithUsername(username string) *ObjectValueBuilder {
+func (b *ProviderValueBuilder) WithUsername(username string) *ProviderValueBuilder {
 	if basicAuth, ok := b.values["basic_auth"]; ok {
 		steps := tftypes.NewAttributePath().
 			WithAttributeName("username").
@@ -39,7 +39,7 @@ func (b *ObjectValueBuilder) WithUsername(username string) *ObjectValueBuilder {
 	return b
 }
 
-func (b *ObjectValueBuilder) WithPassword(password string) *ObjectValueBuilder {
+func (b *ProviderValueBuilder) WithPassword(password string) *ProviderValueBuilder {
 	if basicAuth, ok := b.values["basic_auth"]; ok {
 		steps := tftypes.NewAttributePath().
 			WithAttributeName("password").
@@ -61,12 +61,12 @@ func (b *ObjectValueBuilder) WithPassword(password string) *ObjectValueBuilder {
 	return b
 }
 
-func (b *ObjectValueBuilder) WithIgnoreTLS(ignore bool) *ObjectValueBuilder {
+func (b *ProviderValueBuilder) WithIgnoreTLS(ignore bool) *ProviderValueBuilder {
 	b.values["ignore_tls"] = tftypes.NewValue(tftypes.Bool, ignore)
 	return b
 }
 
-func (b *ObjectValueBuilder) Build() map[string]tftypes.Value {
+func (b *ProviderValueBuilder) Build() map[string]tftypes.Value {
 	return b.values
 }
 
@@ -88,7 +88,7 @@ func (b *ObjectValueBuilder) Build() map[string]tftypes.Value {
 // 	"ignore_tls": tftypes.NewValue(tftypes.Bool, false),
 // },
 // TODO: this should be used to produce the builder above
-// builders.NewObjectValueBuilder().
+// builders.NewProviderValueBuilder().
 // 	WithURL("https://jsonplaceholder.typicode.com").
 // 	WithIgnoreTLS(false).
 // 	WithUsername("user").

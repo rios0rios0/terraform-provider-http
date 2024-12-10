@@ -129,7 +129,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewObjectTypeBuilder().
+					builders.NewProviderTypeBuilder().
 						WithURL().
 						WithIgnoreTLS().
 						WithUsername().
@@ -149,7 +149,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
 					},
 				),
-				Schema: GetSchema(),
+				Schema: GetHTTPProviderSchema(),
 			},
 		}
 		resp := provider.ValidateConfigResponse{
@@ -170,7 +170,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewObjectTypeBuilder().
+					builders.NewProviderTypeBuilder().
 						WithURL().
 						WithIgnoreTLS().
 						WithUsername().
@@ -190,7 +190,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
 					},
 				),
-				Schema: GetSchema(),
+				Schema: GetHTTPProviderSchema(),
 			},
 		}
 		resp := provider.ValidateConfigResponse{
@@ -211,14 +211,14 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewObjectTypeBuilder().
+					builders.NewProviderTypeBuilder().
 						WithURL().
 						Build(),
 					map[string]tftypes.Value{
 						"url": tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
 					},
 				),
-				Schema: GetSchema(),
+				Schema: GetHTTPProviderSchema(),
 			},
 		}
 		resp := provider.ValidateConfigResponse{
@@ -242,7 +242,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewObjectTypeBuilder().
+					builders.NewProviderTypeBuilder().
 						WithURL().
 						WithIgnoreTLS().
 						WithUsername().
@@ -265,7 +265,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
 					},
 				),
-				Schema: GetSchema(),
+				Schema: GetHTTPProviderSchema(),
 			},
 		}
 		resp := provider.ValidateConfigResponse{
@@ -286,7 +286,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewObjectTypeBuilder().
+					builders.NewProviderTypeBuilder().
 						WithURL().
 						WithIgnoreTLS().
 						WithUsername().
@@ -309,7 +309,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
 					},
 				),
-				Schema: GetSchema(),
+				Schema: GetHTTPProviderSchema(),
 			},
 		}
 		resp := provider.ValidateConfigResponse{
