@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Changed
+
+- corrected validation inside the provider to avoid having empty URL when it's required
+
 ## [1.2.1] - 2024-12-09
 
 ### Removed

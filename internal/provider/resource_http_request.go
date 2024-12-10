@@ -129,7 +129,10 @@ func (it *HTTPRequestResource) ValidateConfig(
 	ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse,
 ) {
 	var model HTTPRequestResourceModel
-	if !helpers.RetrieveResourceValidateConfigRequest(ctx, req, resp, &model) {
+
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -173,7 +176,10 @@ func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRe
 	tflog.Info(ctx, "Starting HTTP request...")
 
 	var model HTTPRequestResourceModel
-	if !helpers.RetrieveResourceCreateRequest(ctx, req, resp, &model) {
+
+	diags := req.Plan.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

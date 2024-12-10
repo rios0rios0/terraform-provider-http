@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/helpers"
+	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -16,10 +16,18 @@ import (
 // https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#TestCase
 
 var providerConfigs = []string{
-	helpers.GenerateProviderConfig("https://jsonplaceholder.typicode.com", true, true),
-	helpers.GenerateProviderConfig("https://jsonplaceholder.typicode.com", false, true),
-	helpers.GenerateProviderConfig("https://jsonplaceholder.typicode.com", true, false),
-	helpers.GenerateProviderConfig("https://jsonplaceholder.typicode.com", false, false),
+	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
+		WithBasicAuth("***", "***").
+		WithIgnoreTLS(true).
+		Build(),
+	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
+		WithIgnoreTLS(true).
+		Build(),
+	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
+		WithBasicAuth("***", "***").
+		Build(),
+	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
+		Build(),
 }
 
 func TestHTTPRequestResource(t *testing.T) {
@@ -43,7 +51,11 @@ func TestHTTPRequestResource(t *testing.T) {
 					// create and read testing for GET method
 					{
 						Config: providerConfig +
-							helpers.GenerateResourceConfig("test1", "GET", "/posts/1", "", "", false),
+							builders.NewResourceTFBuilder().
+								WithName("test1").
+								WithMethod("GET").
+								WithPath("/posts/1").
+								Build(),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test1", "method", "GET"),
 							resource.TestCheckResourceAttr("http_request.test1", "path", "/posts/1"),
@@ -86,7 +98,12 @@ func TestHTTPRequestResource(t *testing.T) {
 					// create and read testing for POST method
 					{
 						Config: providerConfig +
-							helpers.GenerateResourceConfig("test2", "POST", "/posts", "test body", "", false),
+							builders.NewResourceTFBuilder().
+								WithName("test2").
+								WithMethod("POST").
+								WithPath("/posts").
+								WithRequestBody("\"test body\"").
+								Build(),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test2", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test2", "path", "/posts"),
@@ -128,6 +145,8 @@ func TestHTTPRequestResource(t *testing.T) {
 	}`))
 		state3ID := base64.StdEncoding.EncodeToString(state3.Bytes())
 
+		body, _ := json.Marshal("{ \"test\": \"test body\" }")
+
 		for _, providerConfig := range providerConfigs {
 			resource.UnitTest(t, resource.TestCase{
 				PreCheck:                 func() { testAccPreCheck(t) },
@@ -136,8 +155,14 @@ func TestHTTPRequestResource(t *testing.T) {
 					// create and read testing for POST method with response filtering
 					{
 						Config: providerConfig +
-							helpers.GenerateResourceConfig("test3", "POST", "/posts", "{ \"test\": \"test body\" }", "$.id", true),
-
+							builders.NewResourceTFBuilder().
+								WithName("test3").
+								WithMethod("POST").
+								WithPath("/posts").
+								WithRequestBody(string(body)).
+								WithResponseBodyIDFilter("$.id").
+								WithIsResponseBodyJSON(true).
+								Build(),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test3", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test3", "path", "/posts"),

@@ -60,6 +60,7 @@ func GetSchema() schema.Schema {
 					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
 					"It is a required attribute and must be specified to ensure proper communication with the target.",
 				Required: true,
+				// TODO: Validators: []validator.String{validators.NewStringNotEmpty("url")},
 			},
 			"basic_auth": schema.SingleNestedAttribute{
 				Description: "Credentials for basic authentication. " +
@@ -126,11 +127,11 @@ func (it *HTTPProvider) ValidateConfig(
 	const detailMessage = "Either target apply the source of the value first, " +
 		"set the value statically in the configuration, "
 
-	if model.URL.IsNull() {
+	if model.URL.IsNull() || len(model.URL.ValueString()) == 0 {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
-			"The provider cannot create the HTTP client as there is a null configuration value for the URL. "+
+			"The provider cannot create the HTTP client as there is a null/empty configuration value for the URL. "+
 				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}

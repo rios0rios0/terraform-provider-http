@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/helpers"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"regexp"
@@ -48,9 +47,32 @@ func TestHTTPProvider(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
-					Config: helpers.GenerateInvalidProviderConfig("", false, false, false) +
-						helpers.GenerateResourceConfig("test1", "GET", "/posts/1", "", "", false),
-					ExpectError: regexp.MustCompile("Get \"posts/1\": unsupported protocol scheme \"\""),
+					Config: builders.NewProviderTFBuilder().WithURL("").Build() +
+						builders.NewResourceTFBuilder().
+							WithName("test1").
+							WithMethod("GET").
+							WithPath("/posts/1").
+							Build(),
+					// TODO: ExpectError: regexp.MustCompile("'url' value must not be empty."),
+					ExpectError: regexp.MustCompile("Unknown URL for HTTP client"),
+				},
+			},
+		})
+	})
+
+	t.Run("should return an error when the URL is missing", func(t *testing.T) {
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: builders.NewProviderTFBuilder().Build() +
+						builders.NewResourceTFBuilder().
+							WithName("test1").
+							WithMethod("GET").
+							WithPath("/posts/1").
+							Build(),
+					ExpectError: regexp.MustCompile("The argument \"url\" is required, but no definition was found."),
 				},
 			},
 		})
@@ -62,8 +84,15 @@ func TestHTTPProvider(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
-					Config: helpers.GenerateInvalidProviderConfig("https://jsonplaceholder.typicode.com", true, true, false) +
-						helpers.GenerateResourceConfig("test1", "GET", "/posts/1", "", "", false),
+					Config: builders.NewProviderTFBuilder().
+						WithURL("https://jsonplaceholder.typicode.com").
+						WithPassword("anything").
+						Build() +
+						builders.NewResourceTFBuilder().
+							WithName("test1").
+							WithMethod("GET").
+							WithPath("/posts/1").
+							Build(),
 					ExpectError: regexp.MustCompile("Inappropriate value for attribute \"basic_auth\": attribute \"username\" is"),
 				},
 			},
@@ -76,8 +105,15 @@ func TestHTTPProvider(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
-					Config: helpers.GenerateInvalidProviderConfig("https://jsonplaceholder.typicode.com", true, false, true) +
-						helpers.GenerateResourceConfig("test1", "GET", "/posts/1", "", "", false),
+					Config: builders.NewProviderTFBuilder().
+						WithURL("https://jsonplaceholder.typicode.com").
+						WithUsername("anything").
+						Build() +
+						builders.NewResourceTFBuilder().
+							WithName("test1").
+							WithMethod("GET").
+							WithPath("/posts/1").
+							Build(),
 					ExpectError: regexp.MustCompile("Inappropriate value for attribute \"basic_auth\": attribute \"password\" is"),
 				},
 			},

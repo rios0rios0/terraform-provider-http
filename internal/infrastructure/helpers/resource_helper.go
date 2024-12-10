@@ -1,30 +1,11 @@
 package helpers
 
 import (
-	"context"
-
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 )
-
-func RetrieveResourceCreateRequest(
-	ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, model any,
-) bool {
-	diags := req.Plan.Get(ctx, model)
-	resp.Diagnostics.Append(diags...)
-	return !resp.Diagnostics.HasError()
-}
-
-func RetrieveResourceValidateConfigRequest(
-	ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse, model any,
-) bool {
-	diags := req.Config.Get(ctx, model)
-	resp.Diagnostics.Append(diags...)
-	return !resp.Diagnostics.HasError()
-}
 
 func StringAttribute(required bool, description string) schema.StringAttribute {
 	attribute := schema.StringAttribute{
