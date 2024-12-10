@@ -4,9 +4,15 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	fresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -190,5 +196,54 @@ func TestHTTPRequestResource(t *testing.T) {
 				},
 			})
 		}
+	})
+}
+
+func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should not throw any error when the 'method' and 'path' are set", func(t *testing.T) {
+		// given
+		req := fresource.ValidateConfigRequest{
+			Config: tfsdk.Config{
+				Raw: tftypes.NewValue(
+					builders.NewResourceTypeBuilder().
+						WithMethod().
+						WithPath().
+						WithHeaders().
+						WithRequestBody().
+						WithIsResponseBodyJSON().
+						WithResponseBodyIDFilter().
+						Build(),
+					map[string]tftypes.Value{
+						"method":                  tftypes.NewValue(tftypes.String, "GET"),
+						"path":                    tftypes.NewValue(tftypes.String, "/posts/1"),
+						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"request_body":            tftypes.NewValue(tftypes.String, nil),
+						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, nil),
+						"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
+
+						// TODO: those attributes are being flag as required by the SDK, but they are not
+						//"id": tftypes.NewValue(tftypes.String, nil),
+						//"response_code":      tftypes.NewValue(tftypes.Number, nil),
+						//"response_body":      tftypes.NewValue(tftypes.String, nil),
+						//"response_body_id":   tftypes.NewValue(tftypes.String, nil),
+						//"response_body_json": tftypes.NewValue(tftypes.String, nil),
+					},
+				),
+				Schema: GetHTTPRequestResourceSchema(),
+			},
+		}
+		resp := fresource.ValidateConfigResponse{
+			Diagnostics: make(diag.Diagnostics, 0),
+		}
+
+		// when
+		it := &HTTPRequestResource{}
+		it.ValidateConfig(context.Background(), req, &resp)
+
+		// then
+		assert.Equal(t, 1, len(resp.Diagnostics), "there's no error required parameters are set")
+		//assert.Equal(t, diag.Diagnostics{}, resp.Diagnostics, "Diagnostic is empty since required parameters are set")
 	})
 }

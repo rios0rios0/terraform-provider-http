@@ -42,7 +42,7 @@ func New(version string) func() provider.Provider {
 	}
 }
 
-func GetSchema() schema.Schema {
+func GetHTTPProviderSchema() schema.Schema {
 	return schema.Schema{
 		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
 			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
@@ -109,7 +109,7 @@ func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 }
 
 func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = GetSchema()
+	resp.Schema = GetHTTPProviderSchema()
 }
 
 // ValidateConfig At this point "IsUnknown()" is not useful because it is always true in the real apply.
