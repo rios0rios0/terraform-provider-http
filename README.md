@@ -1,23 +1,19 @@
 # Terraform Provider for HTTP Requests
-
 This Terraform provider allows you to execute HTTP requests and store the response in the Terraform state. It supports specifying the URL, method, headers, and captures both the response body and response code.
 
 ## Requirements
-
 - [Go](https://golang.org/doc/install) 1.16+
 - [Terraform](https://www.terraform.io/downloads.html) 0.13+
 
 ## Building the Provider
 
 1. Clone the repository:
-
    ```sh
    git clone https://github.com/yourusername/terraform-provider-http.git
    cd terraform-provider-http
    ```
 
 2. Build the provider:
-
    ```sh
    make build
    ```
@@ -25,7 +21,6 @@ This Terraform provider allows you to execute HTTP requests and store the respon
 ## Using the Provider Locally
 
 1. Create the local plugin directory structure:
-
    ```sh
    make install
    ```
@@ -111,15 +106,18 @@ This Terraform provider allows you to execute HTTP requests and store the respon
    ```
 
 ## Contributing
-
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
 
 ## License
-
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## References
+## TODO
 
+- accept when the ID changes, because the request has changed
+- create the delete feature to delete from the state
+- create the import feature to import the HTTP requests
+
+## References
 - [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/resources/create)
 - [Develop a Terraform provider (Terraform HashiCups Provider)](https://github.com/hashicorp/terraform-provider-hashicups)
 - [Terraform Provider Scaffolding (Terraform Plugin Framework)](https://github.com/hashicorp/terraform-provider-scaffolding-framework)
