@@ -19,6 +19,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Changed
 
+- **BREAKING CHANGE:** corrected import state using two parts in the ID to guarantee the resource consistency
 - corrected validation inside the provider to avoid having empty URL when it's required
 
 ## [1.2.1] - 2024-12-09
