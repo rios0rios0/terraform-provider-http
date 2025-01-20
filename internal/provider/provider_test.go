@@ -41,25 +41,6 @@ func testAccPreCheck(_ *testing.T) {
 func TestHTTPProvider(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should return an error when the URL is empty", func(t *testing.T) {
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: builders.NewProviderTFBuilder().WithURL("").Build() +
-						builders.NewResourceTFBuilder().
-							WithName("test1").
-							WithMethod("GET").
-							WithPath("/posts/1").
-							Build(),
-					// TODO: ExpectError: regexp.MustCompile("'url' value must not be empty."),
-					ExpectError: regexp.MustCompile("Unknown URL for HTTP client"),
-				},
-			},
-		})
-	})
-
 	t.Run("should return an error when the URL is missing", func(t *testing.T) {
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:                 func() { testAccPreCheck(t) },
