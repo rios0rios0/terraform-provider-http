@@ -20,6 +20,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## TODO
 - create the delete feature to delete from the state
 - validate UUID while importing resources
+- update `ValidateConfig` inside `provider.go` to catch when the URL is set on the resource as well
 
 ## References
 - [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/resources/create)
