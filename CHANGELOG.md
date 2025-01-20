@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [2.0.1] - 2025-01-20
+
 ### Fixed
 
 - fixed provider's URL value assessment that was triggering empty when it was actually set
