@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/rios0rios0/terraform-provider-http/examples"
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
 )
 
@@ -47,10 +46,7 @@ func GetHTTPProviderSchema() schema.Schema {
 		Description: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
 			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
 		MarkdownDescription: "The HTTP provider allows you to interact with Web endpoints using HTTP requests. " +
-			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.\n\n" +
-			"```hcl\n" + examples.GetHTTPProviderExample() + "\n```\n\n" +
-			"See complete example at the [GitHub repository]" +
-			"(https://github.com/rios0rios0/terraform-provider-http/blob/main/examples/main.tf).",
+			"It is useful for interacting with RESTful APIs, webhooks, and other HTTP-based services.",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Description: "The base URL for all HTTP requests made by this provider. " +
@@ -127,7 +123,8 @@ func (it *HTTPProvider) ValidateConfig(
 	const detailMessage = "Either target apply the source of the value first, " +
 		"set the value statically in the configuration, "
 
-	if model.URL.IsNull() || len(model.URL.ValueString()) == 0 {
+	// you can't access the content here because they're not known yet, they'll be known in the Configure method
+	if model.URL.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",

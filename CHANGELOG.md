@@ -17,6 +17,11 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed provider's URL value assessment that was triggering empty when it was actually set
+- fixed the ID generation instead of using `sha1` of timestamp (which is not unique), it's using the `uuid` to guarantee the uniqueness
+
 ## [2.0.0] - 2025-01-17
 
 ### Changed
