@@ -3,6 +3,9 @@ package helpers
 import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 )
@@ -11,6 +14,9 @@ func StringAttribute(required bool, description string) schema.StringAttribute {
 	attribute := schema.StringAttribute{
 		Description:         description,
 		MarkdownDescription: description,
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.RequiresReplace(),
+		},
 	}
 	if required {
 		attribute.Required = true
@@ -25,6 +31,9 @@ func MapAttribute(required bool, elementType attr.Type, description string) sche
 		ElementType:         elementType,
 		Description:         description,
 		MarkdownDescription: description,
+		PlanModifiers: []planmodifier.Map{
+			mapplanmodifier.RequiresReplace(),
+		},
 	}
 	if required {
 		attribute.Required = true
@@ -38,6 +47,9 @@ func BoolAttribute(required bool, description string) schema.BoolAttribute {
 	attribute := schema.BoolAttribute{
 		Description:         description,
 		MarkdownDescription: description,
+		PlanModifiers: []planmodifier.Bool{
+			boolplanmodifier.RequiresReplace(),
+		},
 	}
 	if required {
 		attribute.Required = true
@@ -52,7 +64,9 @@ func ComputedStringAttribute(description string) schema.StringAttribute {
 		Computed:            true,
 		Description:         description,
 		MarkdownDescription: description,
-		PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.UseStateForUnknown(),
+		},
 	}
 }
 
@@ -61,6 +75,9 @@ func ComputedInt32Attribute(description string) schema.Int32Attribute {
 		Computed:            true,
 		Description:         description,
 		MarkdownDescription: description,
+		PlanModifiers: []planmodifier.Int32{
+			int32planmodifier.UseStateForUnknown(),
+		},
 	}
 }
 
@@ -70,5 +87,8 @@ func ComputedMapAttribute(elementType attr.Type, description string) schema.MapA
 		ElementType:         elementType,
 		Description:         description,
 		MarkdownDescription: description,
+		PlanModifiers: []planmodifier.Map{
+			mapplanmodifier.UseStateForUnknown(),
+		},
 	}
 }

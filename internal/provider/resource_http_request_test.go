@@ -259,6 +259,63 @@ func TestHTTPRequestResource(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should apply and update when using POST and a JSON request body", func(t *testing.T) {
+		// given
+		resourceBuilder := builders.NewResourceTFBuilder().
+			WithName("test4").
+			WithMethod("POST").
+			WithPath("/posts").
+			WithHeaders(map[string]string{
+				"Content-Type": "application/json; charset=UTF-8",
+			}).
+			WithResponseBodyIDFilter("$.id").
+			WithIsResponseBodyJSON(true)
+
+		resourceNoBody := resourceBuilder.Build()
+
+		body, _ := json.Marshal("{ \"title\": \"test title\", \"body\": \"test body\", \"userId\": 1 }")
+		resourceWithBody := resourceBuilder.WithRequestBody(string(body)).Build()
+
+		for _, providerConfig := range providerConfigs {
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ErrorCheck:               func(err error) error { return nil },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Apply testing
+					{
+						Config: providerConfig + resourceNoBody,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							// then
+							resource.TestCheckResourceAttr("http_request.test4", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test4", "path", "/posts"),
+							resource.TestCheckResourceAttrSet("http_request.test4", "response_body"),
+						),
+					},
+
+					// Changing anything and updating
+					{
+						Config: providerConfig + resourceWithBody,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							// then
+							resource.TestCheckResourceAttr("http_request.test4", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test4", "path", "/posts"),
+							resource.TestCheckResourceAttr("http_request.test4", "request_body", string(body)),
+							resource.TestCheckResourceAttrSet("http_request.test4", "response_body"),
+						),
+					},
+
+					// Plan testing
+					{
+						PlanOnly: true,
+						Config:   providerConfig + resourceWithBody,
+					},
+				},
+			})
+		}
+	})
 }
 
 func TestHTTPRequestResource_ValidateConfig(t *testing.T) {

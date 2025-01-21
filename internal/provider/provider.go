@@ -128,7 +128,7 @@ func (it *HTTPProvider) ValidateConfig(
 		resp.Diagnostics.AddAttributeError(
 			path.Root("url"),
 			"Unknown URL for HTTP client",
-			"The provider cannot create the HTTP client as there is a null/empty configuration value for the URL. "+
+			"The provider cannot create the HTTP client as there is a null configuration value for the URL. "+
 				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
 		)
 	}
