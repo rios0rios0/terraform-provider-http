@@ -12,7 +12,7 @@ import (
 // According to Terraform SDK documentation, the `main.go` should be on the root of the project.
 // Otherwise, `tfplugindocs generate` will not work and `.goreleaser.yml` should be changed.
 
-const version string = "2.0.1"
+const version string = "2.0.2"
 
 func main() {
 	var debug bool
