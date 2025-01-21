@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed all arguments to make them force the resource recreation in the `http_request` resource, avoiding issue while changing read-only (computed values) state
+
 ## [2.0.1] - 2025-01-20
 
 ### Fixed

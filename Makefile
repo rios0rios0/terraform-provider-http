@@ -1,3 +1,5 @@
+VERSION = 2.0.2
+
 .PHONY: build install uninstall docs test
 default: test
 
@@ -7,11 +9,11 @@ build:
 install:
 	make build
 	#		 ~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
-	mkdir -p ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/1.0.0/linux_amd64/
-	cp bin/terraform-provider-http ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/1.0.0/linux_amd64/
+	mkdir -p ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
+	cp bin/terraform-provider-http ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
 
 uninstall:
-	rm -rf ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/1.0.0/linux_amd64/
+	rm -rf ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
 
 docs:
 	export GOBIN=$PWD/bin

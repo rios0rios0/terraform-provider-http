@@ -34,6 +34,15 @@ func (b *ResourceTFBuilder) WithPath(path string) *ResourceTFBuilder {
 	return b
 }
 
+func (b *ResourceTFBuilder) WithHeaders(headers map[string]string) *ResourceTFBuilder {
+	b.config += "headers = {\n"
+	for key, value := range headers {
+		b.config += fmt.Sprintf("  %s = \"%s\"\n", key, value)
+	}
+	b.config += "}\n"
+	return b
+}
+
 func (b *ResourceTFBuilder) WithRequestBody(requestBody string) *ResourceTFBuilder {
 	b.config += fmt.Sprintf("request_body = %s \n", requestBody)
 	return b
