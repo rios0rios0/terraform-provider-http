@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added the option to send query parameters when using the provider
+
 ## [2.0.2] - 2025-01-21
 
 ### Fixed

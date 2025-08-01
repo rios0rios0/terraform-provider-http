@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	gopath "path"
 	"strings"
 
 	"github.com/google/uuid"
@@ -47,6 +48,7 @@ type HTTPRequestResourceModel struct {
 	RequestBody          types.String `tfsdk:"request_body"`
 	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
+	QueryParameters      types.Map    `tfsdk:"query_parameters"`
 
 	// state
 	ID               types.String `tfsdk:"id"`
@@ -65,6 +67,7 @@ type HTTPRequestResourceModelNative struct {
 	RequestBody          string            `json:"request_body,omitempty"`
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
+	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
 
 	// state
 	ResponseCode     int32             `json:"response_code"`
@@ -92,6 +95,8 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 			"headers": helpers.MapAttribute(false, types.StringType,
 				"A map of HTTP headers to include in the request. Each key-value pair represents a "+
 					"header name and its corresponding value."),
+			"query_parameters": helpers.MapAttribute(false, types.StringType,
+				"Optional query parameters to append to the request path"),
 			"request_body": helpers.StringAttribute(false,
 				"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests."),
 			"is_response_body_json": helpers.BoolAttribute(false,
@@ -188,9 +193,9 @@ func (it *HTTPRequestResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	endpoint, err := url.JoinPath(it.internal.Config.URL, model.Path.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error joining the URL path, the URL + Path informed are malformed...", err.Error())
+	endpoint, diags := it.buildFullURL(ctx, model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -271,6 +276,48 @@ func (it *HTTPRequestResource) Delete(ctx context.Context, req resource.DeleteRe
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	endpoint, diags := it.buildFullURL(ctx, model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	request, err := it.buildRequest(ctx, model, endpoint)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating DELETE request", err.Error())
+		return
+	}
+	request.Method = http.MethodDelete
+
+	response, err := it.internal.Client.Do(request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error executing DELETE HTTP request", err.Error())
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			resp.Diagnostics.AddError("Error closing the DELETE response body...", err.Error())
+		}
+	}(response.Body)
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading DELETE response", err.Error())
+		return
+	}
+	tflog.Debug(ctx, "Response details", map[string]interface{}{
+		"status": response.StatusCode,
+		"body":   string(responseBody),
+	})
+
+	if !helpers.IsResponseSuccessful(response) && response.StatusCode != http.StatusNotFound {
+		resp.Diagnostics.AddError(
+			"DELETE request failed with unexpected status code",
+			fmt.Sprintf("Response code: %s. Body: %s", response.Status, string(responseBody)),
+		)
 		return
 	}
 
@@ -467,6 +514,12 @@ func decodeImportPayloadToModel(importPayload string, diagnostics *diag.Diagnost
 		return nil
 	}
 	model.Headers = headers
+	queryParameters, diags := types.MapValueFrom(context.Background(), types.StringType, nativeModel.QueryParameters)
+	if diags.HasError() {
+		diagnostics.Append(diags...)
+		return nil
+	}
+	model.QueryParameters = queryParameters
 	responseBodyJSON, diags := types.MapValueFrom(context.Background(), types.StringType, nativeModel.ResponseBodyJSON)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
@@ -475,4 +528,45 @@ func decodeImportPayloadToModel(importPayload string, diagnostics *diag.Diagnost
 	model.ResponseBodyJSON = responseBodyJSON
 
 	return model
+}
+
+func (it *HTTPRequestResource) buildFullURL(ctx context.Context, model HTTPRequestResourceModel) (string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// Parse base URL
+	baseURL, err := url.Parse(it.internal.Config.URL)
+	if err != nil {
+		diags.AddError("Error parsing base URL", err.Error())
+		return "", diags
+	}
+
+	relativePath := model.Path.ValueString()
+	if !strings.HasPrefix(relativePath, "/") {
+		relativePath = "/" + relativePath
+	}
+	escapedPath := url.PathEscape(relativePath)
+	baseURL.Path = gopath.Join(baseURL.Path, escapedPath)
+
+	// Parse query_parameters
+	var queryParams map[string]string
+	if !model.QueryParameters.IsNull() && model.QueryParameters.Elements() != nil {
+		d := model.QueryParameters.ElementsAs(ctx, &queryParams, false)
+		diags.Append(d...)
+		if diags.HasError() {
+			return "", diags
+		}
+	}
+
+	// Mount query string
+	if len(queryParams) > 0 {
+		q := url.Values{}
+		for k, v := range queryParams {
+			q.Add(k, v)
+		}
+		baseURL.RawQuery = q.Encode()
+	}
+
+	finalURL := baseURL.String()
+
+	return finalURL, diags
 }
