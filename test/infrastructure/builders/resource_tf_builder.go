@@ -58,6 +58,15 @@ func (b *ResourceTFBuilder) WithIsResponseBodyJSON(isResponseBodyJSON bool) *Res
 	return b
 }
 
+func (b *ResourceTFBuilder) WithQueryParameters(queryParameters map[string]string) *ResourceTFBuilder {
+	b.config += "query_parameters = {\n"
+	for key, value := range queryParameters {
+		b.config += fmt.Sprintf("  %s = \"%s\"\n", key, value)
+	}
+	b.config += "}\n"
+	return b
+}
+
 func (b *ResourceTFBuilder) Build() string {
 	return fmt.Sprintf(baseResourceTF, b.config)
 }

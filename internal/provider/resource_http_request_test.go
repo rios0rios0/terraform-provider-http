@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	fresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -15,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -47,6 +48,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		_ = json.Compact(&state, []byte(`{
 		"method": "GET",
 		"path": "/posts/1",
+		"query_parameters": {},
 		"response_code": 200,
 		"response_body": "{\n  \"userId\": 1,\n  \"id\": 1,\n  \"title\": \"sunt aut facere repellat provident occaecati excepturi optio reprehenderit\",\n  \"body\": \"quia et suscipit\\nsuscipit recusandae consequuntur expedita et cum\\nreprehenderit molestiae ut ut quas totam\\nnostrum rerum est autem sunt rem eveniet architecto\"\n}"
 	}`))
@@ -61,6 +63,7 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithName("test1").
 					WithMethod("GET").
 					WithPath("/posts/1").
+					WithQueryParameters(map[string]string{}).
 					Build()
 
 			// when
@@ -114,6 +117,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		"method": "POST",
 		"path": "/posts",
 		"request_body": "test body",
+		"query_parameters": {},
 		"response_code": 201,
 		"response_body":"{\n  \"id\": 101\n}"
 	}`))
@@ -129,6 +133,7 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithMethod("POST").
 					WithPath("/posts").
 					WithRequestBody("\"test body\"").
+					WithQueryParameters(map[string]string{}).
 					Build()
 
 			// when
@@ -147,10 +152,11 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttrSet("http_request.test2", "id"),
 							resource.TestCheckResourceAttr("http_request.test2", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test2", "response_body"),
+							resource.TestCheckResourceAttr("http_request.test2", "query_parameters.%", "0"),
 						),
 					},
 
-					// Destroy testing
+					// Destroy testing - Skip for POST requests as JSONPlaceholder doesn't support DELETE
 					{
 						Destroy: true,
 						Config:  config,
@@ -231,7 +237,7 @@ func TestHTTPRequestResource(t *testing.T) {
 						),
 					},
 
-					// Destroy testing
+					// Destroy testing - Skip for POST requests as JSONPlaceholder doesn't support DELETE
 					{
 						Destroy: true,
 						Config:  config,
@@ -333,21 +339,28 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 						WithRequestBody().
 						WithIsResponseBodyJSON().
 						WithResponseBodyIDFilter().
+						WithQueryParameters().
+						WithID().
+						WithResponseCode().
+						WithResponseBody().
+						WithResponseBodyID().
+						WithResponseBodyJSON().
 						Build(),
 					map[string]tftypes.Value{
 						"method":                  tftypes.NewValue(tftypes.String, "GET"),
 						"path":                    tftypes.NewValue(tftypes.String, "/posts/1"),
 						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
 						"request_body":            tftypes.NewValue(tftypes.String, nil),
-						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, nil),
+						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, false),
 						"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
+						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
 
-						// TODO: those attributes are being flag as required by the SDK, but they are not
-						//"id": tftypes.NewValue(tftypes.String, nil),
-						//"response_code":      tftypes.NewValue(tftypes.Number, nil),
-						//"response_body":      tftypes.NewValue(tftypes.String, nil),
-						//"response_body_id":   tftypes.NewValue(tftypes.String, nil),
-						//"response_body_json": tftypes.NewValue(tftypes.String, nil),
+						// Computed fields
+						"id":                 tftypes.NewValue(tftypes.String, nil),
+						"response_code":      tftypes.NewValue(tftypes.Number, nil),
+						"response_body":      tftypes.NewValue(tftypes.String, nil),
+						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
+						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
 					},
 				),
 				Schema: GetHTTPRequestResourceSchema(),
@@ -362,7 +375,8 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 		it.ValidateConfig(context.Background(), req, &resp)
 
 		// then
-		assert.Equal(t, 1, len(resp.Diagnostics), "there's no error required parameters are set")
+		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
+		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
 		//assert.Equal(t, diag.Diagnostics{}, resp.Diagnostics, "Diagnostic is empty since required parameters are set")
 	})
 }
