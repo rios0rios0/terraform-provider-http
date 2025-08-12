@@ -45,7 +45,6 @@ func (b *ResourceTypeBuilder) WithResponseBodyIDFilter() *ResourceTypeBuilder {
 func (b *ResourceTypeBuilder) WithQueryParameters() *ResourceTypeBuilder {
 	b.attributeTypes["query_parameters"] = tftypes.Map{ElementType: tftypes.String}
 	return b
-
 }
 
 func (b *ResourceTypeBuilder) WithID() *ResourceTypeBuilder {
