@@ -21,6 +21,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 - added the option to send query parameters when using the provider
 
+### Fixed
+
+- fixed linter errors
+
 ## [2.0.2] - 2025-01-21
 
 ### Fixed
