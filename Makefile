@@ -1,4 +1,4 @@
-VERSION = 2.0.2
+VERSION = 2.1.0
 
 .PHONY: build install uninstall docs test
 default: test
