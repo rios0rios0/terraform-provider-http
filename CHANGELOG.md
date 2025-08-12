@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 When a new release is proposed:
 
@@ -10,7 +10,7 @@ When a new release is proposed:
 2. The Unreleased section on `CHANGELOG.md` gets a version number and date;
 3. Update the `version` constant in the `main.go` file;
 4. Open a Pull Request with the bump version changes targeting the `main` branch;
-5. When the Pull Request is merged, a new git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
+5. When the Pull Request is merged, a new Git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
 
 Releases to productive environments should run from a tagged version.
 Exceptions are acceptable depending on the circumstances (critical bug fixes that can be cherry-picked, etc.).
@@ -25,8 +25,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Fixed
 
-- fixed supports for `?` query and `#` fragment characters in the HTTP resource path
-- fixed linters, horusec and tests
+- fixed supports for `?` query and `#` fragment characters in the `http_request` resource path parameter
 
 ## [2.0.2] - 2025-01-21
 
