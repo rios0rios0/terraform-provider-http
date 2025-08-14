@@ -28,7 +28,7 @@ type HTTPProvider struct {
 
 // HTTPProviderModel describes the provider data model.
 type HTTPProviderModel struct {
-	URL       types.String `tfsdk:"url" json:"url"`
+	URL       types.String `tfsdk:"url"        json:"url"`
 	BasicAuth types.Object `tfsdk:"basic_auth" json:"basic_auth"`
 	IgnoreTLS types.Bool   `tfsdk:"ignore_tls" json:"-"`
 }
@@ -99,12 +99,20 @@ func GetHTTPProviderSchema() schema.Schema {
 	}
 }
 
-func (it *HTTPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (it *HTTPProvider) Metadata(
+	_ context.Context,
+	_ provider.MetadataRequest,
+	resp *provider.MetadataResponse,
+) {
 	resp.TypeName = "http"
 	resp.Version = it.version
 }
 
-func (it *HTTPProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (it *HTTPProvider) Schema(
+	_ context.Context,
+	_ provider.SchemaRequest,
+	resp *provider.SchemaResponse,
+) {
 	resp.Schema = GetHTTPProviderSchema()
 }
 
