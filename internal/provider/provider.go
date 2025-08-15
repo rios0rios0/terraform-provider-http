@@ -229,6 +229,7 @@ func (it *HTTPProvider) Configure(
 func (it *HTTPProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewHTTPRequestResource,
+		NewHTTPRequestNonFatalResource,
 	}
 }
 
