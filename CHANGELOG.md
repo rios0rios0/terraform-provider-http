@@ -17,6 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-08-15
+
+### Added
+
+- added a provider to gracefully handle 404 errors without fatalling the `terraform apply`
+
 ## [2.1.0] - 2025-08-12
 
 ### Added

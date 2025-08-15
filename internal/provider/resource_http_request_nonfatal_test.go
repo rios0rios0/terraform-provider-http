@@ -23,22 +23,7 @@ import (
 // According to Terraform SDK documentation delete testing automatically occurs in TestCase
 // https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#TestCase
 
-var providerConfigs = []string{
-	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
-		WithBasicAuth("***", "***").
-		WithIgnoreTLS(true).
-		Build(),
-	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
-		WithIgnoreTLS(true).
-		Build(),
-	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
-		WithBasicAuth("***", "***").
-		Build(),
-	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
-		Build(),
-}
-
-func TestHTTPRequestResource(t *testing.T) {
+func TestHTTPNonFatalRequestResource(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should apply and check the state when using GET method", func(t *testing.T) {
@@ -377,7 +362,7 @@ func TestHTTPRequestResource(t *testing.T) {
 	})
 }
 
-func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
+func TestHTTPRequestResourceNonFatal_ValidateConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should not throw any error when the 'method' and 'path' are set", func(t *testing.T) {
