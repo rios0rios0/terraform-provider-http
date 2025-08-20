@@ -67,6 +67,35 @@ func (b *ResourceTFBuilder) WithQueryParameters(queryParameters map[string]strin
 	return b
 }
 
+func (b *ResourceTFBuilder) WithIsDeleteEnabled(isDeleteEnabled bool) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("is_delete_enabled = %t\n", isDeleteEnabled)
+	return b
+}
+
+func (b *ResourceTFBuilder) WithDeleteMethod(deleteMethod string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("delete_method = \"%s\"\n", deleteMethod)
+	return b
+}
+
+func (b *ResourceTFBuilder) WithDeletePath(deletePath string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("delete_path = \"%s\"\n", deletePath)
+	return b
+}
+
+func (b *ResourceTFBuilder) WithDeleteHeaders(deleteHeaders map[string]string) *ResourceTFBuilder {
+	b.config += "delete_headers = {\n"
+	for key, value := range deleteHeaders {
+		b.config += fmt.Sprintf("  \"%s\" = \"%s\"\n", key, value)
+	}
+	b.config += "}\n"
+	return b
+}
+
+func (b *ResourceTFBuilder) WithDeleteRequestBody(deleteRequestBody string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("delete_request_body = %s\n", deleteRequestBody)
+	return b
+}
+
 func (b *ResourceTFBuilder) Build() string {
 	return fmt.Sprintf(baseResourceTF, b.config)
 }

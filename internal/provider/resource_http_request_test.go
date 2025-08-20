@@ -313,6 +313,244 @@ func TestHTTPRequestResource(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should apply and destroy with is_delete_enabled = true using default DELETE method", func(t *testing.T) {
+		// given
+		for _, providerConfig := range providerConfigs {
+			config := providerConfig +
+				builders.NewResourceTFBuilder().
+					WithName("test_delete").
+					WithMethod("POST").
+					WithPath("/posts").
+					WithHeaders(map[string]string{
+						"Content-Type": "application/json",
+					}).
+					WithRequestBody(strconv.Quote(`{"title": "test delete", "body": "test body", "userId": 1}`)).
+					WithIsResponseBodyJSON(true).
+					WithResponseBodyIDFilter("$.id").
+					WithIsDeleteEnabled(true).
+					Build()
+
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Create and verify
+					{
+						Config: config,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("http_request.test_delete", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test_delete", "path", "/posts"),
+							resource.TestCheckResourceAttr("http_request.test_delete", "is_delete_enabled", "true"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete", "id"),
+							resource.TestCheckResourceAttr("http_request.test_delete", "response_code", "201"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete", "response_body"),
+							resource.TestCheckResourceAttr("http_request.test_delete", "response_body_id", "101"),
+						),
+					},
+					// Destroy testing - this will attempt actual DELETE to /posts when is_delete_enabled = true
+					{
+						Destroy: true,
+						Config:  config,
+					},
+				},
+			})
+		}
+	})
+
+	t.Run("should apply and destroy with custom delete_path using JSONPath token", func(t *testing.T) {
+		// given
+		for _, providerConfig := range providerConfigs {
+			config := providerConfig +
+				builders.NewResourceTFBuilder().
+					WithName("test_delete_custom_path").
+					WithMethod("POST").
+					WithPath("/posts").
+					WithHeaders(map[string]string{
+						"Content-Type": "application/json",
+					}).
+					WithRequestBody(strconv.Quote(`{"title": "test delete custom path", "body": "test body", "userId": 1}`)).
+					WithIsResponseBodyJSON(true).
+					WithResponseBodyIDFilter("$.id").
+					WithIsDeleteEnabled(true).
+					WithDeletePath("/posts/$.id").
+					Build()
+
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Create and verify
+					{
+						Config: config,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "path", "/posts"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "is_delete_enabled", "true"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "delete_path", "/posts/$.id"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_path", "id"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "response_code", "201"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_path", "response_body"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "response_body_id", "101"),
+							// Verify that delete_resolved_path is computed with the ID from the response
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "delete_resolved_path", "/posts/101"),
+						),
+					},
+					// Destroy testing - this will attempt DELETE to /posts/101
+					{
+						Destroy: true,
+						Config:  config,
+					},
+				},
+			})
+		}
+	})
+
+	t.Run("should apply and destroy with custom delete_method, headers, and body", func(t *testing.T) {
+		// given
+		for _, providerConfig := range providerConfigs {
+			config := providerConfig +
+				builders.NewResourceTFBuilder().
+					WithName("test_delete_custom_all").
+					WithMethod("POST").
+					WithPath("/posts").
+					WithHeaders(map[string]string{
+						"Content-Type": "application/json",
+					}).
+					WithRequestBody(strconv.Quote(`{"title": "test delete custom all", "body": "test body", "userId": 1}`)).
+					WithIsResponseBodyJSON(true).
+					WithResponseBodyIDFilter("$.id").
+					WithIsDeleteEnabled(true).
+					WithDeleteMethod("POST").
+					WithDeletePath("/posts/$.id/archive").
+					WithDeleteHeaders(map[string]string{
+						"X-Delete-Reason": "terraform-destroy",
+						"Content-Type":    "application/json",
+					}).
+					WithDeleteRequestBody(strconv.Quote(`{"reason": "terraform destroy", "actor": "automation"}`)).
+					Build()
+
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Create and verify
+					{
+						Config: config,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "path", "/posts"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "is_delete_enabled", "true"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_path", "/posts/$.id/archive"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.X-Delete-Reason", "terraform-destroy"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.Content-Type", "application/json"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_request_body", `{"reason": "terraform destroy", "actor": "automation"}`),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_all", "id"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_code", "201"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_all", "response_body"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_body_id", "101"),
+							// Verify that delete_resolved_path is computed with the ID from the response
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_resolved_path", "/posts/101/archive"),
+						),
+					},
+					// Destroy testing - this will attempt POST to /posts/101/archive with custom headers and body
+					{
+						Destroy: true,
+						Config:  config,
+					},
+				},
+			})
+		}
+	})
+
+	t.Run("should apply and destroy with is_delete_enabled = false (state-only destruction)", func(t *testing.T) {
+		// given
+		for _, providerConfig := range providerConfigs {
+			config := providerConfig +
+				builders.NewResourceTFBuilder().
+					WithName("test_delete_disabled").
+					WithMethod("POST").
+					WithPath("/posts").
+					WithHeaders(map[string]string{
+						"Content-Type": "application/json",
+					}).
+					WithRequestBody(strconv.Quote(`{"title": "test delete disabled", "body": "test body", "userId": 1}`)).
+					WithIsResponseBodyJSON(true).
+					WithResponseBodyIDFilter("$.id").
+					WithIsDeleteEnabled(false).
+					Build()
+
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Create and verify
+					{
+						Config: config,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "method", "POST"),
+							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "path", "/posts"),
+							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "is_delete_enabled", "false"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_disabled", "id"),
+							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "response_code", "201"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_disabled", "response_body"),
+							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "response_body_id", "101"),
+						),
+					},
+					// Destroy testing - this should only remove from state, no HTTP request
+					{
+						Destroy: true,
+						Config:  config,
+					},
+				},
+			})
+		}
+	})
+
+	t.Run("should apply and destroy with GET method and delete enabled", func(t *testing.T) {
+		// given
+		for _, providerConfig := range providerConfigs {
+			config := providerConfig +
+				builders.NewResourceTFBuilder().
+					WithName("test_delete_get").
+					WithMethod("GET").
+					WithPath("/posts/1").
+					WithIsDeleteEnabled(true).
+					WithDeletePath("/posts/1").
+					Build()
+
+			// when
+			resource.UnitTest(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					// Create and verify
+					{
+						Config: config,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("http_request.test_delete_get", "method", "GET"),
+							resource.TestCheckResourceAttr("http_request.test_delete_get", "path", "/posts/1"),
+							resource.TestCheckResourceAttr("http_request.test_delete_get", "is_delete_enabled", "true"),
+							resource.TestCheckResourceAttr("http_request.test_delete_get", "delete_path", "/posts/1"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_get", "id"),
+							resource.TestCheckResourceAttr("http_request.test_delete_get", "response_code", "200"),
+							resource.TestCheckResourceAttrSet("http_request.test_delete_get", "response_body"),
+						),
+					},
+					// Destroy testing - this will attempt DELETE to /posts/1
+					{
+						Destroy: true,
+						Config:  config,
+					},
+				},
+			})
+		}
+	})
 }
 
 func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
@@ -331,6 +569,12 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 						WithIsResponseBodyJSON().
 						WithResponseBodyIDFilter().
 						WithQueryParameters().
+						WithIsDeleteEnabled().
+						WithDeleteMethod().
+						WithDeletePath().
+						WithDeleteHeaders().
+						WithDeleteRequestBody().
+						WithDeleteResolvedPath().
 						WithID().
 						WithResponseCode().
 						WithResponseBody().
@@ -345,6 +589,14 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, false),
 						"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
 						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+
+						// Destroy controls
+						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, nil),
+						"delete_method":        tftypes.NewValue(tftypes.String, nil),
+						"delete_path":          tftypes.NewValue(tftypes.String, nil),
+						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"delete_request_body":  tftypes.NewValue(tftypes.String, nil),
+						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
 
 						// Computed fields
 						"id":                 tftypes.NewValue(tftypes.String, nil),
@@ -368,5 +620,139 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 		// then
 		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
 		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
+	})
+}
+
+func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should validate destroy configuration with custom delete_path and JSONPath token", func(t *testing.T) {
+		// given
+		req := fresource.ValidateConfigRequest{
+			Config: tfsdk.Config{
+				Raw: tftypes.NewValue(
+					builders.NewResourceTypeBuilder().
+						WithMethod().
+						WithPath().
+						WithHeaders().
+						WithRequestBody().
+						WithIsResponseBodyJSON().
+						WithResponseBodyIDFilter().
+						WithQueryParameters().
+						WithIsDeleteEnabled().
+						WithDeleteMethod().
+						WithDeletePath().
+						WithDeleteHeaders().
+						WithDeleteRequestBody().
+						WithDeleteResolvedPath().
+						WithID().
+						WithResponseCode().
+						WithResponseBody().
+						WithResponseBodyID().
+						WithResponseBodyJSON().
+						Build(),
+					map[string]tftypes.Value{
+						"method":                  tftypes.NewValue(tftypes.String, "POST"),
+						"path":                    tftypes.NewValue(tftypes.String, "/posts"),
+						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"request_body":            tftypes.NewValue(tftypes.String, `{"title":"test"}`),
+						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
+						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
+						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+
+						// Destroy controls
+						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),
+						"delete_method":        tftypes.NewValue(tftypes.String, "DELETE"),
+						"delete_path":          tftypes.NewValue(tftypes.String, "/posts/$.id"),
+						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"delete_request_body":  tftypes.NewValue(tftypes.String, nil),
+						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
+
+						// Computed fields
+						"id":                 tftypes.NewValue(tftypes.String, nil),
+						"response_code":      tftypes.NewValue(tftypes.Number, nil),
+						"response_body":      tftypes.NewValue(tftypes.String, nil),
+						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
+						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+					},
+				),
+				Schema: GetHTTPRequestResourceSchema(),
+			},
+		}
+		resp := fresource.ValidateConfigResponse{
+			Diagnostics: make(diag.Diagnostics, 0),
+		}
+
+		// when
+		it := &HTTPRequestResource{}
+		it.ValidateConfig(context.Background(), req, &resp)
+
+		// then
+		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when all parameters are correctly set for destroy")
+	})
+
+	t.Run("should validate destroy configuration with custom delete_method POST", func(t *testing.T) {
+		// given
+		req := fresource.ValidateConfigRequest{
+			Config: tfsdk.Config{
+				Raw: tftypes.NewValue(
+					builders.NewResourceTypeBuilder().
+						WithMethod().
+						WithPath().
+						WithHeaders().
+						WithRequestBody().
+						WithIsResponseBodyJSON().
+						WithResponseBodyIDFilter().
+						WithQueryParameters().
+						WithIsDeleteEnabled().
+						WithDeleteMethod().
+						WithDeletePath().
+						WithDeleteHeaders().
+						WithDeleteRequestBody().
+						WithDeleteResolvedPath().
+						WithID().
+						WithResponseCode().
+						WithResponseBody().
+						WithResponseBodyID().
+						WithResponseBodyJSON().
+						Build(),
+					map[string]tftypes.Value{
+						"method":                  tftypes.NewValue(tftypes.String, "POST"),
+						"path":                    tftypes.NewValue(tftypes.String, "/posts"),
+						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"request_body":            tftypes.NewValue(tftypes.String, `{"title":"test"}`),
+						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
+						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
+						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+
+						// Destroy controls - soft delete example
+						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),
+						"delete_method":        tftypes.NewValue(tftypes.String, "POST"),
+						"delete_path":          tftypes.NewValue(tftypes.String, "/posts/$.id/archive"),
+						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"delete_request_body":  tftypes.NewValue(tftypes.String, `{"reason":"terraform destroy"}`),
+						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
+
+						// Computed fields
+						"id":                 tftypes.NewValue(tftypes.String, nil),
+						"response_code":      tftypes.NewValue(tftypes.Number, nil),
+						"response_body":      tftypes.NewValue(tftypes.String, nil),
+						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
+						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+					},
+				),
+				Schema: GetHTTPRequestResourceSchema(),
+			},
+		}
+		resp := fresource.ValidateConfigResponse{
+			Diagnostics: make(diag.Diagnostics, 0),
+		}
+
+		// when
+		it := &HTTPRequestResource{}
+		it.ValidateConfig(context.Background(), req, &resp)
+
+		// then
+		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when soft delete configuration is valid")
 	})
 }
