@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -20,9 +21,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
-
-// According to Terraform SDK documentation delete testing automatically occurs in TestCase
-// https://pkg.go.dev/github.com/hashicorp/terraform-plugin-framework/resource#TestCase
 
 var providerConfigs = []string{
 	builders.NewProviderTFBuilder().WithURL("https://jsonplaceholder.typicode.com").
@@ -52,7 +50,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		"response_code": 200,
 		"response_body": "{\n  \"userId\": 1,\n  \"id\": 1,\n  \"title\": \"sunt aut facere repellat provident occaecati excepturi optio reprehenderit\",\n  \"body\": \"quia et suscipit\\nsuscipit recusandae consequuntur expedita et cum\\nreprehenderit molestiae ut ut quas totam\\nnostrum rerum est autem sunt rem eveniet architecto\"\n}"
 	}`))
-		stateID := "anything unique"
+		stateID := "unique"
 		modelEncoded := base64.StdEncoding.EncodeToString(state.Bytes())
 		importPayload := fmt.Sprintf("%s/%s", stateID, modelEncoded)
 
@@ -121,7 +119,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		"response_code": 201,
 		"response_body":"{\n  \"id\": 101\n}"
 	}`))
-		stateID := "anything unique"
+		stateID := "unique"
 		modelEncoded := base64.StdEncoding.EncodeToString(state.Bytes())
 		importPayload := fmt.Sprintf("%s/%s", stateID, modelEncoded)
 
@@ -132,7 +130,7 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithName("test2").
 					WithMethod("POST").
 					WithPath("/posts").
-					WithRequestBody("\"test body\"").
+					WithRequestBody(strconv.Quote("test body")).
 					WithQueryParameters(map[string]string{}).
 					Build()
 
@@ -156,18 +154,15 @@ func TestHTTPRequestResource(t *testing.T) {
 						),
 					},
 
-					// Destroy testing - Skip for POST requests as JSONPlaceholder doesn't support DELETE
 					{
 						Destroy: true,
 						Config:  config,
 					},
 
-					// Import testing
 					{
 						ImportState:   true,
 						ResourceName:  "http_request.test2",
 						ImportStateId: importPayload,
-						// function is being used because ImportStateVerify compares with the previous object
 						ImportStateCheck: func(state []*terraform.InstanceState) error {
 							// then
 							assert.Equal(t, stateID, state[0].ID, "id should be equal to the stateID")
@@ -188,7 +183,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		_ = json.Compact(&state, []byte(`{
 		"method": "POST",
 		"path": "/posts",
-		"request_body": "{ \"test\": \"test body\" }",
+		"request_body": "{\"test\":\"test body\"}",
  		"is_response_body_json": true,
 		"response_body_id_filter": "$.id",
 		"response_code": 201,
@@ -196,11 +191,11 @@ func TestHTTPRequestResource(t *testing.T) {
 		"response_body_id": "101",
 		"response_body_json": {"id":"101"}
 	}`))
-		stateID := "anything unique"
+		stateID := "unique"
 		modelEncoded := base64.StdEncoding.EncodeToString(state.Bytes())
 		importPayload := fmt.Sprintf("%s/%s", stateID, modelEncoded)
 
-		body, _ := json.Marshal("{ \"test\": \"test body\" }")
+		body, _ := json.Marshal(map[string]any{"test": "test body"})
 
 		for _, providerConfig := range providerConfigs {
 			// given
@@ -209,7 +204,7 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithName("test3").
 					WithMethod("POST").
 					WithPath("/posts").
-					WithRequestBody(string(body)).
+					WithRequestBody(strconv.Quote(string(body))).
 					WithResponseBodyIDFilter("$.id").
 					WithIsResponseBodyJSON(true).
 					Build()
@@ -226,7 +221,7 @@ func TestHTTPRequestResource(t *testing.T) {
 							// then
 							resource.TestCheckResourceAttr("http_request.test3", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test3", "path", "/posts"),
-							resource.TestCheckResourceAttr("http_request.test3", "request_body", "{ \"test\": \"test body\" }"),
+							resource.TestCheckResourceAttr("http_request.test3", "request_body", string(body)),
 							resource.TestCheckResourceAttr("http_request.test3", "is_response_body_json", "true"),
 							resource.TestCheckResourceAttr("http_request.test3", "response_body_id_filter", "$.id"),
 							resource.TestCheckResourceAttrSet("http_request.test3", "id"),
@@ -255,7 +250,7 @@ func TestHTTPRequestResource(t *testing.T) {
 							assert.Equal(t, "POST", state[0].Attributes["method"], "method should be POST")
 							assert.Equal(t, "/posts", state[0].Attributes["path"], "path should be /posts")
 							assert.Equal(t, "201", state[0].Attributes["response_code"], "response_code should be 201")
-							assert.Equal(t, "{ \"test\": \"test body\" }", state[0].Attributes["request_body"], "request_body should be { \"test\": \"test body\" }")
+							assert.Equal(t, "{\"test\":\"test body\"}", state[0].Attributes["request_body"], "request_body should be { \"test\": \"test body\" }")
 							assert.Equal(t, "true", state[0].Attributes["is_response_body_json"], "is_response_body_json should be true")
 							assert.Equal(t, "$.id", state[0].Attributes["response_body_id_filter"], "response_body_id_filter should be $.id")
 							return nil
@@ -281,7 +276,7 @@ func TestHTTPRequestResource(t *testing.T) {
 		resourceNoBody := resourceBuilder.Build()
 
 		body, _ := json.Marshal("{ \"title\": \"test title\", \"body\": \"test body\", \"userId\": 1 }")
-		resourceWithBody := resourceBuilder.WithRequestBody(string(body)).Build()
+		resourceWithBody := resourceBuilder.WithRequestBody(strconv.Quote(string(body))).Build()
 
 		for _, providerConfig := range providerConfigs {
 			// when
@@ -300,8 +295,6 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttrSet("http_request.test4", "response_body"),
 						),
 					},
-
-					// Changing anything and updating
 					{
 						Config: providerConfig + resourceWithBody,
 						Check: resource.ComposeAggregateTestCheckFunc(
@@ -312,8 +305,6 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttrSet("http_request.test4", "response_body"),
 						),
 					},
-
-					// Plan testing
 					{
 						PlanOnly: true,
 						Config:   providerConfig + resourceWithBody,
@@ -377,6 +368,5 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 		// then
 		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
 		assert.Equal(t, 0, len(resp.Diagnostics), "there should be no errors when required parameters are set")
-		//assert.Equal(t, diag.Diagnostics{}, resp.Diagnostics, "Diagnostic is empty since required parameters are set")
 	})
 }

@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	gopath "path"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -50,6 +53,14 @@ type HTTPRequestResourceModel struct {
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
 
+	// destroy controls
+	IsDeleteEnabled    types.Bool   `tfsdk:"is_delete_enabled"`
+	DeleteMethod       types.String `tfsdk:"delete_method"`
+	DeletePath         types.String `tfsdk:"delete_path"`
+	DeleteHeaders      types.Map    `tfsdk:"delete_headers"`
+	DeleteRequestBody  types.String `tfsdk:"delete_request_body"`
+	DeleteResolvedPath types.String `tfsdk:"delete_resolved_path"`
+
 	// state
 	ID               types.String `tfsdk:"id"`
 	ResponseCode     types.Int32  `tfsdk:"response_code"`
@@ -68,6 +79,13 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+
+	// destroy controls
+	IsDeleteEnabled   bool              `json:"is_delete_enabled,omitempty"`
+	DeleteMethod      string            `json:"delete_method,omitempty"`
+	DeletePath        string            `json:"delete_path,omitempty"`
+	DeleteHeaders     map[string]string `json:"delete_headers,omitempty"`
+	DeleteRequestBody string            `json:"delete_request_body,omitempty"`
 
 	// state
 	ResponseCode     int32             `json:"response_code"`
@@ -114,6 +132,22 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 				"A JSONPath filter used to extract a specific ID from the JSON response body. "+
 					"This is useful for identifying unique elements within the response."),
 
+			// destroy controls
+			"is_delete_enabled": helpers.BoolAttribute(false,
+				"Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, "+
+					"a DELETE will be sent to the original `path`."),
+			"delete_method": helpers.StringAttribute(false,
+				"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE."),
+			"delete_path": helpers.StringAttribute(false,
+				"Path to call during deletion. Supports inline JSONPath tokens like \"/posts/$.data.id\" "+
+					"evaluated against the `response_body` from create."),
+			"delete_headers": helpers.MapAttribute(false, types.StringType,
+				"Headers to send only during deletion."),
+			"delete_request_body": helpers.StringAttribute(false,
+				"Body to send only during deletion."),
+			"delete_resolved_path": helpers.ComputedStringAttribute(
+				"The `delete_path` with JSONPath tokens resolved from the create response, when possible."),
+
 			// state
 			// TODO: how to document the import of ths ID with examples?
 			"id": helpers.ComputedStringAttribute(
@@ -152,18 +186,23 @@ func (it *HTTPRequestResource) Schema(
 func (it *HTTPRequestResource) ValidateConfig(
 	ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse,
 ) {
-	var model HTTPRequestResourceModel
+	var isJSON types.Bool
+	var filter types.String
 
-	diags := req.Config.Get(ctx, &model)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(
+		req.Config.GetAttribute(ctx, path.Root("is_response_body_json"), &isJSON)...,
+	)
+	resp.Diagnostics.Append(
+		req.Config.GetAttribute(ctx, path.Root("response_body_id_filter"), &filter)...,
+	)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !model.IsResponseBodyJSON.IsUnknown() && model.IsResponseBodyJSON.ValueBool() &&
-		(model.ResponseBodyIDFilter.IsUnknown() || model.ResponseBodyIDFilter.IsNull()) {
+	if !isJSON.IsUnknown() && isJSON.ValueBool() &&
+		(filter.IsUnknown() || filter.IsNull() || strings.TrimSpace(filter.ValueString()) == "") {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("response_id_filter"),
+			path.Root("response_body_id_filter"),
 			"Since the response is JSON, the filter must be provided.",
 			"When the expected answer is a JSON, the ID must be parsed in the state. "+
 				"Please provide a filter to extract the ID from the JSON response. "+
@@ -264,6 +303,16 @@ func (it *HTTPRequestResource) Create(
 	updateResponseBodyID(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
 	updateResponseBodyJSON(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
 
+	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
+		if resolved, ok := resolveDeletePathTokens(model.DeletePath.ValueString(), model.ResponseBody.ValueString(), &resp.Diagnostics); ok {
+			model.DeleteResolvedPath = types.StringValue(resolved)
+		} else {
+			model.DeleteResolvedPath = types.StringNull()
+		}
+	} else {
+		model.DeleteResolvedPath = types.StringNull()
+	}
+
 	// the ID should be the last attribute to be set
 	if len(model.ID.ValueString()) == 0 {
 		model.ID = types.StringValue(uuid.NewString())
@@ -304,31 +353,113 @@ func (it *HTTPRequestResource) Update(
 	}, (*resource.CreateResponse)(resp))
 }
 
+func isBoolTrue(v types.Bool) bool {
+	return !v.IsNull() && v.ValueBool()
+}
+
+func isNonEmptyString(v types.String) bool {
+	return !v.IsNull() && strings.TrimSpace(v.ValueString()) != ""
+}
+
+func pickDeleteMethod(m HTTPRequestResourceModel) string {
+	if isNonEmptyString(m.DeleteMethod) {
+		return strings.ToUpper(strings.TrimSpace(m.DeleteMethod.ValueString()))
+	}
+	return http.MethodDelete
+}
+
+func resolveDeleteTargetPath(
+	m HTTPRequestResourceModel,
+	diagnostics *diag.Diagnostics,
+) (string, bool) {
+	if !isNonEmptyString(m.DeletePath) {
+		return m.Path.ValueString(), true
+	}
+
+	if isNonEmptyString(m.DeleteResolvedPath) {
+		return m.DeleteResolvedPath.ValueString(), true
+	}
+	if m.ResponseBody.IsNull() || m.ResponseBody.ValueString() == "" {
+		diagnostics.AddError(
+			"Missing response_body to resolve delete_path",
+			"`delete_path` contains JSONPath tokens but `response_body` is empty; cannot resolve.",
+		)
+		return "", false
+	}
+
+	resolved, ok := resolveDeletePathTokens(
+		m.DeletePath.ValueString(),
+		m.ResponseBody.ValueString(),
+		diagnostics,
+	)
+	if !ok {
+		return "", false
+	}
+	return resolved, true
+}
+
+func makeDeleteModel(
+	base HTTPRequestResourceModel,
+	method string,
+	targetPath string,
+) HTTPRequestResourceModel {
+	dm := base
+	dm.Method = types.StringValue(method)
+	dm.Path = types.StringValue(targetPath)
+
+	// Body only if provided for delete
+	if isNonEmptyString(base.DeleteRequestBody) {
+		dm.RequestBody = types.StringValue(base.DeleteRequestBody.ValueString())
+	} else {
+		dm.RequestBody = types.StringNull()
+	}
+
+	// Headers only if provided for delete
+	if !base.DeleteHeaders.IsNull() && base.DeleteHeaders.Elements() != nil {
+		dm.Headers = base.DeleteHeaders
+	} else {
+		dm.Headers = types.MapNull(types.StringType)
+	}
+
+	return dm
+}
+
 func (it *HTTPRequestResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	// TODO: should be implemented to perform a DELETE in original source (not just the TF state)
 	var model HTTPRequestResourceModel
-
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	endpoint, diags := it.buildFullURL(ctx, model)
+	if !isBoolTrue(model.IsDeleteEnabled) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	method := pickDeleteMethod(model)
+
+	targetPath, ok := resolveDeleteTargetPath(model, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	delModel := makeDeleteModel(model, method, targetPath)
+
+	endpoint, diags := it.buildFullURL(ctx, delModel)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	request, err := it.buildRequest(ctx, model, endpoint)
+	request, err := it.buildRequest(ctx, delModel, endpoint)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating DELETE request", err.Error())
 		return
 	}
-	request.Method = http.MethodDelete
 
 	response, err := it.internal.Client.Do(request)
 	if err != nil {
@@ -346,12 +477,13 @@ func (it *HTTPRequestResource) Delete(
 		resp.Diagnostics.AddError("Error reading DELETE response", err.Error())
 		return
 	}
-	tflog.Debug(ctx, "Response details", map[string]interface{}{
+	tflog.Debug(ctx, "DELETE response details", map[string]interface{}{
 		"status": response.StatusCode,
 		"body":   string(responseBody),
 	})
 
-	if !helpers.IsResponseSuccessful(response) && response.StatusCode != http.StatusNotFound {
+	// Treat any non-2xx as error
+	if !helpers.IsResponseSuccessful(response) {
 		resp.Diagnostics.AddError(
 			"DELETE request failed with unexpected status code",
 			fmt.Sprintf("Response code: %s. Body: %s", response.Status, string(responseBody)),
@@ -383,7 +515,7 @@ func (it *HTTPRequestResource) ImportState(
 	if !model.IsResponseBodyJSON.IsUnknown() && model.IsResponseBodyJSON.ValueBool() &&
 		(model.ResponseBodyIDFilter.IsUnknown() || model.ResponseBodyIDFilter.IsNull()) {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("response_id_filter"),
+			path.Root("response_body_id_filter"),
 			"Since the response is JSON, the filter must be provided.",
 			"When the expected answer is a JSON, the ID must be parsed in the state. "+
 				"Please provide a filter to extract the ID from the JSON response. "+
@@ -399,35 +531,82 @@ func (it *HTTPRequestResource) ImportState(
 func (it *HTTPRequestResource) buildRequest(
 	ctx context.Context, model HTTPRequestResourceModel, endpoint string,
 ) (*http.Request, error) {
-	var requestBody io.Reader
+	var body io.Reader
+	looksJSON := false
+
 	if !model.RequestBody.IsNull() {
-		requestBody = bytes.NewBufferString(model.RequestBody.ValueString())
+		send, isJSON := coerceBodyString(model.RequestBody.ValueString())
+		body = bytes.NewBufferString(send)
+		looksJSON = isJSON
 	}
-	request, err := http.NewRequestWithContext(
+
+	req, err := http.NewRequestWithContext(
 		ctx,
 		model.Method.ValueString(),
 		endpoint,
-		requestBody,
+		body,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
 
-	for key, value := range model.Headers.Elements() {
-		if !value.IsUnknown() && !value.IsNull() {
-			//nolint:errcheck // checked already via SDK state (line before)
-			request.Header.Set(key, value.(types.String).ValueString())
-		}
+	if applyErr := applyHeadersFromMapAttr(ctx, req.Header, model.Headers); applyErr != nil {
+		return nil, applyErr
 	}
 
+	applyDefaultJSONHeaders(req.Header, isBoolTrue(model.IsResponseBodyJSON), looksJSON)
+
 	if it.internal.Config.HasAuthentication() {
-		request.SetBasicAuth(
+		req.SetBasicAuth(
 			it.internal.Config.BasicAuth.Username,
 			it.internal.Config.BasicAuth.Password,
 		)
 	}
 
-	return request, nil
+	return req, nil
+}
+
+func coerceBodyString(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return raw, false
+	}
+	if strings.HasPrefix(trimmed, "\"") && strings.HasSuffix(trimmed, "\"") {
+		if unq, err := strconv.Unquote(trimmed); err == nil {
+			u := strings.TrimSpace(unq)
+			if strings.HasPrefix(u, "{") || strings.HasPrefix(u, "[") {
+				return unq, true
+			}
+		}
+	}
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		return raw, true
+	}
+	return raw, false
+}
+
+func applyHeadersFromMapAttr(ctx context.Context, h http.Header, m types.Map) error {
+	if m.IsNull() || m.Elements() == nil {
+		return nil
+	}
+	var headers map[string]string
+	d := m.ElementsAs(ctx, &headers, false)
+	if d.HasError() {
+		return errors.New("invalid headers provided")
+	}
+	for k, v := range headers {
+		h.Set(k, v)
+	}
+	return nil
+}
+
+func applyDefaultJSONHeaders(h http.Header, expectJSON bool, looksJSON bool) {
+	if (expectJSON || looksJSON) && h.Get("Content-Type") == "" {
+		h.Set("Content-Type", "application/json; charset=UTF-8")
+	}
+	if expectJSON && h.Get("Accept") == "" {
+		h.Set("Accept", "application/json")
+	}
 }
 
 func updateResponseBody(model *HTTPRequestResourceModel, diagnostics *diag.Diagnostics) {
@@ -523,6 +702,42 @@ func updateResponseBodyJSON(
 	}
 }
 
+func resolveDeletePathTokens(rawPath, responseBody string, diagnostics *diag.Diagnostics) (string, bool) {
+	var jsonPathTokenRe = regexp.MustCompile(`\$\.[^/]+`)
+
+	if !strings.Contains(rawPath, "$.") {
+		return rawPath, true
+	}
+
+	jsonResponse, err := unmarshalJSON([]byte(responseBody), diagnostics)
+	if err != nil {
+		diagnostics.AddError("Failed to parse response_body for delete_path resolution",
+			"response_body is not valid JSON or could not be parsed.")
+		return "", false
+	}
+
+	resolved := rawPath
+	tokens := jsonPathTokenRe.FindAllString(rawPath, -1)
+	for _, token := range tokens {
+		expr, exprErr := parseJSONPath(token, diagnostics)
+		if exprErr != nil {
+			diagnostics.AddError("Failed to parse JSONPath token in delete_path",
+				fmt.Sprintf("token: %q, cause: %v", token, exprErr))
+			return "", false
+		}
+		val := expr.First(jsonResponse)
+		if val == nil {
+			diagnostics.AddError("JSONPath token not found in response_body",
+				fmt.Sprintf("token: %q did not resolve against create response", token))
+			return "", false
+		}
+		repl := fmt.Sprintf("%v", val)
+		resolved = strings.ReplaceAll(resolved, token, repl)
+	}
+
+	return resolved, true
+}
+
 func decodeImportPayloadToModel(
 	importPayload string,
 	diagnostics *diag.Diagnostics,
@@ -564,6 +779,12 @@ func decodeImportPayloadToModel(
 
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
+
+		// delete controls
+		IsDeleteEnabled:   types.BoolValue(nativeModel.IsDeleteEnabled),
+		DeleteMethod:      types.StringValue(nativeModel.DeleteMethod),
+		DeletePath:        types.StringValue(nativeModel.DeletePath),
+		DeleteRequestBody: types.StringValue(nativeModel.DeleteRequestBody),
 	}
 	// avoid optional values being in the state as empty (string)
 	if len(nativeModel.RequestBody) > 0 {
@@ -589,6 +810,7 @@ func decodeImportPayloadToModel(
 		return nil
 	}
 	model.Headers = headers
+
 	queryParameters, diags := types.MapValueFrom(
 		context.Background(),
 		types.StringType,
@@ -599,6 +821,18 @@ func decodeImportPayloadToModel(
 		return nil
 	}
 	model.QueryParameters = queryParameters
+
+	deleteHeaders, diags := types.MapValueFrom(
+		context.Background(),
+		types.StringType,
+		nativeModel.DeleteHeaders,
+	)
+	if diags.HasError() {
+		diagnostics.Append(diags...)
+		return nil
+	}
+	model.DeleteHeaders = deleteHeaders
+
 	responseBodyJSON, diags := types.MapValueFrom(
 		context.Background(),
 		types.StringType,

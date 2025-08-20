@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Changed
+
+- modified destroy to use additional parameters in `http_request`
+
 ## [2.1.0] - 2025-08-12
 
 ### Added
