@@ -951,7 +951,7 @@ func TestHTTPRequestResource_DestroyHelperFunctions(t *testing.T) {
 		deleteHeaders, _ := types.MapValue(types.StringType, map[string]attr.Value{
 			"X-Delete-Reason": types.StringValue("terraform-destroy"),
 		})
-		
+
 		baseModel := HTTPRequestResourceModel{
 			Method:            types.StringValue("POST"),
 			Path:              types.StringValue("/posts"),
