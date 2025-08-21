@@ -27,7 +27,7 @@ import (
 	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
 )
 
-// Package-level regex for JSONPath token resolution, compiled once during package initialization
+// Package-level regex for JSONPath token resolution, compiled once during package initialization.
 var jsonPathTokenRe = regexp.MustCompile(`\$\.[^/]+`)
 
 // Ensure HTTPRequestResource satisfies various resources interfaces.

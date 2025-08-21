@@ -209,6 +209,7 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithRequestBody(strconv.Quote(string(body))).
 					WithResponseBodyIDFilter("$.id").
 					WithIsResponseBodyJSON(true).
+					WithDeletePath("/posts/$.id").
 					Build()
 
 			// when
@@ -331,6 +332,8 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithIsResponseBodyJSON(true).
 					WithResponseBodyIDFilter("$.id").
 					WithIsDeleteEnabled(true).
+					// Use the created ID so the DELETE hits a 2xx endpoint
+					WithDeletePath("/posts/$.id").
 					Build()
 
 			// when
@@ -351,7 +354,7 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttr("http_request.test_delete", "response_body_id", "101"),
 						),
 					},
-					// Destroy testing - this will attempt actual DELETE to /posts when is_delete_enabled = true
+					// Destroy testing - this will attempt DELETE to /posts/{id}
 					{
 						Destroy: true,
 						Config:  config,
@@ -425,8 +428,8 @@ func TestHTTPRequestResource(t *testing.T) {
 					WithIsResponseBodyJSON(true).
 					WithResponseBodyIDFilter("$.id").
 					WithIsDeleteEnabled(true).
-					WithDeleteMethod("POST").
-					WithDeletePath("/posts/$.id/archive").
+					WithDeleteMethod("PATCH").
+					WithDeletePath("/posts/$.id").
 					WithDeleteHeaders(map[string]string{
 						"X-Delete-Reason": "terraform-destroy",
 						"Content-Type":    "application/json",
@@ -446,8 +449,8 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "path", "/posts"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "is_delete_enabled", "true"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_method", "POST"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_path", "/posts/$.id/archive"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_method", "PATCH"),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_path", "/posts/$.id"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.X-Delete-Reason", "terraform-destroy"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.Content-Type", "application/json"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_request_body", `{"reason": "terraform destroy", "actor": "automation"}`),
@@ -455,9 +458,7 @@ func TestHTTPRequestResource(t *testing.T) {
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_all", "response_body"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_body_id", "101"),
-							// Verify that delete_resolved_path is computed with the ID from the response
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_resolved_path", "/posts/101/archive"),
-						),
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_resolved_path", "/posts/101")),
 					},
 					// Destroy testing - this will attempt POST to /posts/101/archive with custom headers and body
 					{
