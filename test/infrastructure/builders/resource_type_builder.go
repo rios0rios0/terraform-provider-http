@@ -47,6 +47,36 @@ func (b *ResourceTypeBuilder) WithQueryParameters() *ResourceTypeBuilder {
 	return b
 }
 
+func (b *ResourceTypeBuilder) WithIsDeleteEnabled() *ResourceTypeBuilder {
+	b.attributeTypes["is_delete_enabled"] = tftypes.Bool
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithDeleteMethod() *ResourceTypeBuilder {
+	b.attributeTypes["delete_method"] = tftypes.String
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithDeletePath() *ResourceTypeBuilder {
+	b.attributeTypes["delete_path"] = tftypes.String
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithDeleteHeaders() *ResourceTypeBuilder {
+	b.attributeTypes["delete_headers"] = tftypes.Map{ElementType: tftypes.String}
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithDeleteRequestBody() *ResourceTypeBuilder {
+	b.attributeTypes["delete_request_body"] = tftypes.String
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithDeleteResolvedPath() *ResourceTypeBuilder {
+	b.attributeTypes["delete_resolved_path"] = tftypes.String
+	return b
+}
+
 func (b *ResourceTypeBuilder) WithID() *ResourceTypeBuilder {
 	b.attributeTypes["id"] = tftypes.String
 	return b

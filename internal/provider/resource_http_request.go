@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +26,9 @@ import (
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
 	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
 )
+
+// Package-level regex for JSONPath token resolution, compiled once during package initialization.
+var jsonPathTokenRe = regexp.MustCompile(`\$\.[^/]+`)
 
 // Ensure HTTPRequestResource satisfies various resources interfaces.
 var (
@@ -573,8 +575,8 @@ func coerceBodyString(raw string) (string, bool) {
 	}
 	if strings.HasPrefix(trimmed, "\"") && strings.HasSuffix(trimmed, "\"") {
 		if unq, err := strconv.Unquote(trimmed); err == nil {
-			u := strings.TrimSpace(unq)
-			if strings.HasPrefix(u, "{") || strings.HasPrefix(u, "[") {
+			unqTrimmed := strings.TrimSpace(unq)
+			if strings.HasPrefix(unqTrimmed, "{") || strings.HasPrefix(unqTrimmed, "[") {
 				return unq, true
 			}
 		}
@@ -592,7 +594,11 @@ func applyHeadersFromMapAttr(ctx context.Context, h http.Header, m types.Map) er
 	var headers map[string]string
 	d := m.ElementsAs(ctx, &headers, false)
 	if d.HasError() {
-		return errors.New("invalid headers provided")
+		var diagDetails []string
+		for _, err := range d.Errors() {
+			diagDetails = append(diagDetails, fmt.Sprintf("%s: %s", err.Summary(), err.Detail()))
+		}
+		return fmt.Errorf("invalid headers provided: %s", strings.Join(diagDetails, "; "))
 	}
 	for k, v := range headers {
 		h.Set(k, v)
@@ -703,8 +709,6 @@ func updateResponseBodyJSON(
 }
 
 func resolveDeletePathTokens(rawPath, responseBody string, diagnostics *diag.Diagnostics) (string, bool) {
-	var jsonPathTokenRe = regexp.MustCompile(`\$\.[^/]+`)
-
 	if !strings.Contains(rawPath, "$.") {
 		return rawPath, true
 	}
