@@ -34,8 +34,8 @@ func (it *StringNotEmpty) ValidateString(
 		return
 	}
 
-	// TODO: is this the correct way to check for TF validators?
-	// this is just appending the error to the diagnostics and showing them at the end
+	// Validator implementation follows Terraform plugin framework patterns
+	// Appends validation errors to diagnostics for proper error reporting
 	if len(value.ValueString()) == 0 {
 		resp.Diagnostics.AddError(it.Description(ctx), "")
 	}
