@@ -17,9 +17,13 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
-### Changed
+## [2.2.0] - 2025-08-22
 
-- modified destroy to use additional parameters in `http_request`
+### Added
+
+- added Copilot instructions on how to build and install this project
+- added destruction mechanism (destroy method) to use additional and optional parameters in `http_request` resource
+- added new documentation to explain how to use the optional destruction parameters
 
 ## [2.1.0] - 2025-08-12
 
@@ -55,7 +59,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Removed
 
-- removed `IsUnknown` from inside the `ValidateConfig` method to avoid issues in to apply without previous state
+- removed `IsUnknown` from inside the `ValidateConfig` method to avoid issues when applying without a previous state
 
 ## [1.2.0] - 2024-12-09
 
@@ -84,7 +88,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 ### Changed
 
 - changed all the code styling to follow the standard proposed at [pipelines](https://github.com/rios0rios0/pipelines/blob/main/global/scripts/golangci-lint/.golangci.yml) repository
-- corrected basic testing with basic checking with 3 cases
+- corrected basic testing with basic checking with three cases
 - corrected documentation to have examples in the official page
 - corrected the structure to be more readable using DDD
 
@@ -92,7 +96,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Changed
 
-- **BREAKING CHANGE:** changed the code to comply with the new Terraform SDK according to the [tutorial](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider-configure)
+- **BREAKING CHANGE:** changed the code to comply with the new Terraform SDK, according to the [tutorial](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider-configure)
 
 ## [0.0.6] - 2024-08-23
 
