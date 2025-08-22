@@ -4,11 +4,30 @@ This directory contains issue templates for migrating all TODOs from the codebas
 
 ## Quick Start
 
-### Option 1: Automated Creation (Recommended)
+### Option 1: API Creation (Recommended - Most Reliable)
 
 ```bash
 cd docs/github-issues
-./create-issues.sh
+export GITHUB_TOKEN=your_token_here  # Get from https://github.com/settings/tokens/new
+python3 create-issues-api.py
+```
+
+This method:
+1. Uses direct GitHub API calls for maximum reliability
+2. Requires a Personal Access Token (easy setup)
+3. Creates all 9 issues with proper labels and formatting
+4. Provides detailed success/failure reporting
+
+**Token Setup:**
+1. Go to [GitHub Settings > Tokens](https://github.com/settings/tokens/new)
+2. Create token with `repo` or `public_repo` scope
+3. Copy the token and export: `export GITHUB_TOKEN=your_token_here`
+
+### Option 2: GitHub CLI Creation
+
+```bash
+cd docs/github-issues
+./create-all-issues.sh
 ```
 
 This script will:
@@ -17,7 +36,7 @@ This script will:
 3. Apply appropriate labels to each issue
 4. Provide a summary of created issues
 
-### Option 2: Manual Creation via GitHub CLI
+### Option 3: Manual Creation via GitHub CLI
 
 If the automated script doesn't work, you can create issues individually:
 
