@@ -17,10 +17,15 @@ Contributions are welcome! Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## TODO
-- create the delete feature to delete from the state
-- validate UUID while importing resources
-- update `ValidateConfig` inside `provider.go` to catch when the URL is set on the resource as well
+## Development Status
+
+For planned features, improvements, and known issues, please check our [GitHub Issues](https://github.com/rios0rios0/terraform-provider-http/issues).
+
+Current focus areas include:
+- Resource lifecycle management (delete functionality)
+- Enhanced validation and state management
+- Documentation improvements
+- Performance optimizations
 
 ## References
 - [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/resources/create)

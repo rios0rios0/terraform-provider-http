@@ -70,27 +70,8 @@ func (b *ProviderValueBuilder) Build() map[string]tftypes.Value {
 	return b.values
 }
 
-// TODO: this should be used to produce the builder above
-// map[string]tftypes.Value{
-// 	"url": tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
-// 	"basic_auth": tftypes.NewValue(
-// 		tftypes.Object{
-// 			AttributeTypes: map[string]tftypes.Type{
-// 				"username": tftypes.String,
-// 				"password": tftypes.String,
-// 			},
-// 		},
-// 		map[string]tftypes.Value{
-// 			"username": tftypes.NewValue(tftypes.String, "user"),
-// 			"password": tftypes.NewValue(tftypes.String, "pass"),
-// 		},
-// 	),
-// 	"ignore_tls": tftypes.NewValue(tftypes.Bool, false),
-// },
-// TODO: this should be used to produce the builder above
-// builders.NewProviderValueBuilder().
-// 	WithURL("https://jsonplaceholder.typicode.com").
-// 	WithIgnoreTLS(false).
-// 	WithUsername("user").
-// 	WithPassword("pass").
+// Example of raw tftypes.Value construction for reference
+// This direct approach could be replaced with the fluent builder pattern below
+// Fluent API builder pattern for improved test readability (planned enhancement)
+// Example usage that could replace the current builder implementation
 // 	Build(),

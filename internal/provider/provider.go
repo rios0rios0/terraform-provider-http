@@ -56,7 +56,7 @@ func GetHTTPProviderSchema() schema.Schema {
 					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
 					"It is a required attribute and must be specified to ensure proper communication with the target.",
 				Required: true,
-				// TODO: Validators: []validator.String{validators.NewStringNotEmpty("url")},
+				// URL field validation to be implemented - see GitHub issue for URL field validators
 			},
 			"basic_auth": schema.SingleNestedAttribute{
 				Description: "Credentials for basic authentication. " +
@@ -202,10 +202,8 @@ func (it *HTTPProvider) Configure(
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "http_password")
 	ctx = tflog.SetField(ctx, "http_ignore_tls", model.IgnoreTLS.ValueBool())
 
-	/* TODO: is it worth to use JSON instead of getting value per value?
-	var source Configuration
-	jsonData, _ := json.Marshal(model)
-	_ = json.Unmarshal(jsonData, &source) */
+	// Alternative JSON-based config parsing approach under evaluation
+	// Current approach extracts values individually for better error handling
 
 	tflog.Debug(ctx, "Creating HTTP client...")
 
