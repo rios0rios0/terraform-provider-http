@@ -26,7 +26,7 @@
      required_providers {
        http = {
          source = "hashicorp-local.com/rios0rios0/http"
-         version = "2.0.1"
+         version = "2.2.0"
        }
      }
    }
@@ -39,7 +39,7 @@
      required_providers {
        http = {
          source = "rios0rios0/http"
-         version = "2.0.1"
+         version = "2.2.0"
        }
      }
    }

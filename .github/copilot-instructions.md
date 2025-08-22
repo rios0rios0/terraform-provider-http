@@ -1,6 +1,6 @@
 # Terraform Provider for HTTP Requests
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
+Always reference these instructions first and fall back to search or bash commands only when you encounter unexpected information that does not match the info here.
 
 ## Working Effectively
 
@@ -18,7 +18,7 @@ Always reference these instructions first and fallback to search or bash command
 ### Linting and Code Quality
 - `go fmt ./...` -- formats Go code
 - `go vet ./...` -- runs Go static analysis
-- Install golangci-lint: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /tmp v1.62.2`
+- Install `golangci-lint`: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /tmp v1.62.2`
 - `/tmp/golangci-lint run ./...` -- runs comprehensive linting. Takes ~1 minute. NEVER CANCEL. Set timeout to 120+ seconds.
 
 ### Manual Provider Testing
@@ -29,7 +29,7 @@ terraform {
   required_providers {
     http = {
       source = "hashicorp-local.com/rios0rios0/http"
-      version = "2.1.0"
+      version = "2.2.0"
     }
   }
 }
@@ -56,14 +56,14 @@ resource "http_request" "test_request" {
 
 ### Always Test These Scenarios After Changes
 1. **Build and Install**: `make build && make install` -- must complete without errors
-2. **Test Suite**: `make test` -- all tests must pass with coverage report
-3. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/2.1.0/linux_amd64/`
+2. **Test Suite**: `make test` -- all tests must pass with a coverage report
+3. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/2.2.0/linux_amd64/`
 4. **Terraform Integration**: `terraform init` and `terraform plan` must work with local provider
 5. **Documentation**: `make docs` must generate clean documentation in `docs/` directory
 
 ### Code Quality Checks
 - Run `go fmt ./...` and `go vet ./...` before committing
-- Install and run golangci-lint for comprehensive static analysis
+- Install and run `golangci-lint` for comprehensive static analysis
 - All tests must maintain or improve coverage (currently 45.8% total coverage)
 
 ## Key Codebase Navigation
@@ -88,7 +88,7 @@ resource "http_request" "test_request" {
 - Delete operations with path resolution
 
 ### Version and Configuration
-- Current version: 2.1.0 (defined in `main.go`)
+- Current version: 2.2.0 (defined in `main.go`)
 - Provider address: `registry.terraform.io/rios0rios0/http`
 - Local testing address: `hashicorp-local.com/rios0rios0/http`
 
@@ -99,16 +99,16 @@ resource "http_request" "test_request" {
 - Missing dependencies: Run `go mod download` and `go mod tidy`
 
 ### Test Issues  
-- Network connectivity issues in tests: Tests use jsonplaceholder.typicode.com for integration testing
+- Network connectivity issues in tests: Tests use `jsonplaceholder.typicode.com` for integration testing
 - Provider namespace errors: Ensure `TF_ACC_PROVIDER_NAMESPACE=rios0rios0` is set for acceptance tests
 
 ### Provider Installation Issues
-- Local provider not found: Ensure `make install` completed successfully
+- Local provider isn't found: Ensure `make install` completed successfully
 - Version mismatches: Check version in `main.go` matches version in test configurations
 
 ## External Dependencies
 - Uses external CI pipeline: `rios0rios0/pipelines/.github/workflows/go-binary.yaml@main`
-- Test infrastructure requires access to jsonplaceholder.typicode.com for integration tests
+- Test infrastructure requires access to `jsonplaceholder.typicode.com` for integration tests
 - Documentation generation requires `terraform` binary in PATH
 
 Always build and exercise your changes with the validation scenarios above before considering work complete.
