@@ -24,7 +24,73 @@ resource "http_request" "get_example" {
   response_body_id_filter = "$.id"
 }
 
-# 2) POST create + enable real DELETE using JSONPath token in delete_path
+# 2) Resource-level base URL (allows different APIs per resource)
+resource "http_request" "different_api" {
+  method   = "GET"
+  path     = "/posts/1"
+  base_url = "https://api.example.com"  # Override provider URL
+  
+  headers = {
+    "Accept" = "application/json"
+  }
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 3) Resource-level authentication (per-resource credentials)
+resource "http_request" "with_auth" {
+  method   = "GET"
+  path     = "/protected/data"
+  base_url = "https://secure-api.example.com"
+  
+  basic_auth = {
+    username = "api-user"
+    password = "secret-key"
+  }
+  
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 4) Resource-level TLS configuration
+resource "http_request" "insecure_api" {
+  method     = "GET"
+  path       = "/data"
+  base_url   = "https://self-signed.example.com"
+  ignore_tls = true  # Skip TLS verification for this resource
+  
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 5) Using count with different APIs (solves the original issue!)
+variable "apis" {
+  default = [
+    {
+      name     = "api1"
+      base_url = "https://api1.example.com"
+      path     = "/users/1"
+    },
+    {
+      name     = "api2" 
+      base_url = "https://api2.example.com"
+      path     = "/profiles/1"
+    }
+  ]
+}
+
+resource "http_request" "multi_api_calls" {
+  count = length(var.apis)
+  
+  method   = "GET"
+  path     = var.apis[count.index].path
+  base_url = var.apis[count.index].base_url
+  
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 6) POST create + enable real DELETE using JSONPath token in delete_path
 # When `is_delete_enabled = true` and `delete_path` contains JSONPath tokens (e.g. $.id),
 # the provider resolves the token(s) against the JSON `response_body` from create and stores
 # the computed value in `delete_resolved_path`. On `terraform destroy`, it will send the
@@ -51,7 +117,7 @@ resource "http_request" "create_then_delete" {
   delete_path = "/posts/$.id"
 }
 
-# 3) POST create + SOFT DELETE via POST with custom headers and body
+# 7) POST create + SOFT DELETE via POST with custom headers and body
 # Some APIs require a non-DELETE verb or a specific body to "archive"/"deactivate".
 resource "http_request" "create_then_soft_delete" {
   method  = "POST"
@@ -82,7 +148,7 @@ resource "http_request" "create_then_soft_delete" {
   })
 }
 
-# 4) GET with query_parameters (echoed into the request URL)
+# 8) GET with query_parameters (echoed into the request URL)
 resource "http_request" "with_query_params" {
   method = "GET"
   path   = "/comments"
@@ -110,11 +176,14 @@ resource "http_request" "with_query_params" {
 
 ### Optional
 
+- `base_url` (String) The base URL for this specific HTTP request. When specified, this overrides the provider-level URL configuration. This allows for different APIs to be used within the same configuration.
+- `basic_auth` (Attributes) Credentials for basic authentication for this specific request. When specified, this overrides the provider-level basic authentication configuration. (see [below for nested schema](#nestedatt--basic_auth))
 - `delete_headers` (Map of String) Headers to send only during deletion.
 - `delete_method` (String) HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE.
 - `delete_path` (String) Path to call during deletion. Supports inline JSONPath tokens like "/posts/$.data.id" evaluated against the `response_body` from create.
 - `delete_request_body` (String) Body to send only during deletion.
 - `headers` (Map of String) A map of HTTP headers to include in the request. Each key-value pair represents a header name and its corresponding value.
+- `ignore_tls` (Boolean) A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. When specified, this overrides the provider-level ignore_tls configuration.
 - `is_delete_enabled` (Boolean) Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, a DELETE will be sent to the original `path`.
 - `is_response_body_json` (Boolean) A boolean flag indicating whether the response body is expected to be in JSON format.
 - `query_parameters` (Map of String) Optional query parameters to append to the request path
@@ -129,6 +198,14 @@ resource "http_request" "with_query_params" {
 - `response_body_id` (String) The extracted ID from the JSON response body, based on the provided `response_body_id_filter`. This is only populated if `is_response_body_json` is true.
 - `response_body_json` (Map of String) The response body parsed as a Terraform map object. Nested items can be accessed using dot notation (e.g., "response_body_json["nested.item.value"]").
 - `response_code` (Number) The HTTP status code returned by the server in response to the request (e.g., 200 for success, 404 for not found).
+
+<a id="nestedatt--basic_auth"></a>
+### Nested Schema for `basic_auth`
+
+Required:
+
+- `password` (String, Sensitive) The password for basic authentication.
+- `username` (String) The username for basic authentication.
 
 ## Import
 
