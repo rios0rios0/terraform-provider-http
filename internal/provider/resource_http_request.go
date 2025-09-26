@@ -807,6 +807,21 @@ func decodeImportPayloadToModel(
 	importPayload string,
 	diagnostics *diag.Diagnostics,
 ) *HTTPRequestResourceModel {
+	nativeModel, id := parseImportPayload(importPayload, diagnostics)
+	if nativeModel == nil {
+		return nil
+	}
+
+	model := buildModelFromNativeData(nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
+
+	model.ID = types.StringValue(id)
+	return model
+}
+
+func parseImportPayload(importPayload string, diagnostics *diag.Diagnostics) (*HTTPRequestResourceModelNative, string) {
 	// Format: <RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>
 	parts := strings.Split(importPayload, "/")
 	if len(parts) != AmountOfPartsInID {
@@ -814,7 +829,7 @@ func decodeImportPayloadToModel(
 			"Invalid Import Identifier please check the Base64 encoding...",
 			"Expected a string with the format <RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>.",
 		)
-		return nil
+		return nil, ""
 	}
 
 	// Decode the base64 string
@@ -824,7 +839,7 @@ func decodeImportPayloadToModel(
 			"Invalid Import Identifier please check the Base64 encoding...",
 			fmt.Sprintf("Failed to decode Base64 identifier here is the specific cause: %v", err),
 		)
-		return nil
+		return nil, ""
 	}
 
 	// Unmarshal the JSON to the intermediate struct
@@ -834,14 +849,36 @@ func decodeImportPayloadToModel(
 			"Error unmarshalling the JSON to the intermediate struct...",
 			err.Error(),
 		)
+		return nil, ""
+	}
+
+	return &nativeModel, parts[0]
+}
+
+func buildModelFromNativeData(
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) *HTTPRequestResourceModel {
+	model := createBaseModel(nativeModel)
+
+	setOptionalStringFields(model, nativeModel)
+	setResourceLevelFields(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
 		return nil
 	}
 
-	model := &HTTPRequestResourceModel{
-		ID:     types.StringValue(parts[0]),
-		Method: types.StringValue(nativeModel.Method),
-		Path:   types.StringValue(nativeModel.Path),
+	setMapFields(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
 
+	return model
+}
+
+func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestResourceModel {
+	model := &HTTPRequestResourceModel{
+		Method:             types.StringValue(nativeModel.Method),
+		Path:               types.StringValue(nativeModel.Path),
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
 	}
@@ -851,19 +888,41 @@ func decodeImportPayloadToModel(
 		model.IsDeleteEnabled = types.BoolValue(nativeModel.IsDeleteEnabled)
 	}
 
-	// Handle delete method only if provided
+	return model
+}
+
+func setOptionalStringFields(model *HTTPRequestResourceModel, nativeModel *HTTPRequestResourceModelNative) {
+	// Handle delete fields only if provided
 	if len(nativeModel.DeleteMethod) > 0 {
 		model.DeleteMethod = types.StringValue(nativeModel.DeleteMethod)
 	}
-	// Handle delete path only if provided
 	if len(nativeModel.DeletePath) > 0 {
 		model.DeletePath = types.StringValue(nativeModel.DeletePath)
 	}
-	// Handle delete request body only if provided
 	if len(nativeModel.DeleteRequestBody) > 0 {
 		model.DeleteRequestBody = types.StringValue(nativeModel.DeleteRequestBody)
 	}
 
+	// avoid optional values being in the state as empty (string)
+	if len(nativeModel.RequestBody) > 0 {
+		model.RequestBody = types.StringValue(nativeModel.RequestBody)
+	}
+	if len(nativeModel.ResponseBodyIDFilter) > 0 {
+		model.ResponseBodyIDFilter = types.StringValue(nativeModel.ResponseBodyIDFilter)
+	}
+	if len(nativeModel.ResponseBody) > 0 {
+		model.ResponseBody = types.StringValue(nativeModel.ResponseBody)
+	}
+	if len(nativeModel.ResponseBodyID) > 0 {
+		model.ResponseBodyID = types.StringValue(nativeModel.ResponseBodyID)
+	}
+}
+
+func setResourceLevelFields(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
 	// Handle new resource-level configuration fields
 	if len(nativeModel.BaseURL) > 0 {
 		model.BaseURL = types.StringValue(nativeModel.BaseURL)
@@ -875,6 +934,14 @@ func decodeImportPayloadToModel(
 	}
 
 	// Handle BasicAuth object - must always be initialized with correct type
+	setBasicAuthField(model, nativeModel, diagnostics)
+}
+
+func setBasicAuthField(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
 	if len(nativeModel.BasicAuth) > 0 {
 		basicAuthMap := make(map[string]attr.Value)
 		if username, ok := nativeModel.BasicAuth["username"]; ok {
@@ -892,7 +959,7 @@ func decodeImportPayloadToModel(
 		)
 		if diags.HasError() {
 			diagnostics.Append(diags...)
-			return nil
+			return
 		}
 		model.BasicAuth = basicAuthObj
 	} else {
@@ -905,19 +972,13 @@ func decodeImportPayloadToModel(
 		)
 		model.BasicAuth = basicAuthObj
 	}
-	// avoid optional values being in the state as empty (string)
-	if len(nativeModel.RequestBody) > 0 {
-		model.RequestBody = types.StringValue(nativeModel.RequestBody)
-	}
-	if len(nativeModel.ResponseBodyIDFilter) > 0 {
-		model.ResponseBodyIDFilter = types.StringValue(nativeModel.ResponseBodyIDFilter)
-	}
-	if len(nativeModel.ResponseBody) > 0 {
-		model.ResponseBody = types.StringValue(nativeModel.ResponseBody)
-	}
-	if len(nativeModel.ResponseBodyID) > 0 {
-		model.ResponseBodyID = types.StringValue(nativeModel.ResponseBodyID)
-	}
+}
+
+func setMapFields(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
 	// avoid optional values being in the state as empty (map)
 	headers, diags := types.MapValueFrom(
 		context.Background(),
@@ -926,7 +987,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.Headers = headers
 
@@ -937,7 +998,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.QueryParameters = queryParameters
 
@@ -948,7 +1009,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.DeleteHeaders = deleteHeaders
 
@@ -959,11 +1020,9 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.ResponseBodyJSON = responseBodyJSON
-
-	return model
 }
 
 func (it *HTTPRequestResource) buildFullURL(
