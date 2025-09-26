@@ -965,7 +965,7 @@ func (it *HTTPRequestResource) buildFullURL(
 	return finalURL, diags
 }
 
-// getHTTPClient returns the HTTP client to use for this request, 
+// getHTTPClient returns the HTTP client to use for this request,
 // taking into account resource-level TLS configuration
 func (it *HTTPRequestResource) getHTTPClient(
 	ctx context.Context,
