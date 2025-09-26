@@ -11,6 +11,44 @@
    make build
    ```
 
+## Development Process
+
+### Before Making Changes
+
+1. Run linting to check for any existing issues:
+   ```sh
+   make lint
+   ```
+
+2. Run tests to ensure everything is working:
+   ```sh
+   make test
+   ```
+
+### Making Changes
+
+1. Make your code changes
+2. **Update CHANGELOG.md** - Add your changes to the `[Unreleased]` section following the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format
+3. Run linting and fix any issues:
+   ```sh
+   make lint-fix
+   ```
+4. Run tests to ensure nothing is broken:
+   ```sh
+   make test
+   ```
+5. Update documentation if needed:
+   ```sh
+   make docs
+   ```
+
+### Submitting Changes
+
+- Ensure CHANGELOG.md is updated with your changes
+- All tests must pass
+- Linting issues must be resolved
+- Documentation should be updated if the changes affect user-facing functionality
+
 ## Using the Provider Locally
 
 1. Create the local plugin directory structure:

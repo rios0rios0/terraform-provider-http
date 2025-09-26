@@ -41,7 +41,7 @@ func testAccPreCheck(_ *testing.T) {
 func TestHTTPProvider(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should return an error when the URL is missing", func(t *testing.T) {
+	t.Run("should work when the URL is missing at provider level but provided at resource level", func(t *testing.T) {
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:                 func() { testAccPreCheck(t) },
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -52,8 +52,11 @@ func TestHTTPProvider(t *testing.T) {
 							WithName("test1").
 							WithMethod("GET").
 							WithPath("/posts/1").
+							WithBaseURL("https://jsonplaceholder.typicode.com").
 							Build(),
-					ExpectError: regexp.MustCompile("The argument \"url\" is required, but no definition was found."),
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test1", "response_code", "200"),
+					),
 				},
 			},
 		})
@@ -146,7 +149,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		assert.Equal(t, diag.Diagnostics{}, resp.Diagnostics, "Diagnostic is empty since the URL is set")
 	})
 
-	t.Run("should throw an error when the URL was not set", func(t *testing.T) {
+	t.Run("should not throw an error when the URL was not set since it can be provided at resource level", func(t *testing.T) {
 		// given
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
@@ -183,8 +186,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		it.ValidateConfig(context.Background(), req, &resp)
 
 		// then
-		assert.Equal(t, 1, len(resp.Diagnostics), "there's an error since the URL is not set")
-		assert.Equal(t, "Unknown URL for HTTP client", resp.Diagnostics[0].Summary(), "the error message is correct")
+		assert.Equal(t, 0, len(resp.Diagnostics), "there's no error since URL can be provided at resource level")
 	})
 
 	t.Run("should throw an error when the schema was not properly set", func(t *testing.T) {

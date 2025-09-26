@@ -3,8 +3,10 @@ package provider
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,6 +57,11 @@ type HTTPRequestResourceModel struct {
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
 
+	// resource-level configuration (alternative to provider-level)
+	BaseURL   types.String `tfsdk:"base_url"`
+	BasicAuth types.Object `tfsdk:"basic_auth"`
+	IgnoreTLS types.Bool   `tfsdk:"ignore_tls"`
+
 	// destroy controls
 	IsDeleteEnabled    types.Bool   `tfsdk:"is_delete_enabled"`
 	DeleteMethod       types.String `tfsdk:"delete_method"`
@@ -81,6 +88,11 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+
+	// resource-level configuration (alternative to provider-level)
+	BaseURL   string            `json:"base_url,omitempty"`
+	BasicAuth map[string]string `json:"basic_auth,omitempty"`
+	IgnoreTLS bool              `json:"ignore_tls,omitempty"`
 
 	// destroy controls
 	IsDeleteEnabled   bool              `json:"is_delete_enabled,omitempty"`
@@ -126,6 +138,39 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 				false,
 				"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.",
 			),
+
+			// resource-level configuration (alternative to provider-level)
+			"base_url": helpers.StringAttribute(
+				false,
+				"The base URL for this specific HTTP request. When specified, this overrides the provider-level URL "+
+					"configuration. This allows for different APIs to be used within the same configuration.",
+			),
+			"basic_auth": schema.SingleNestedAttribute{
+				Description: "Credentials for basic authentication for this specific request. " +
+					"When specified, this overrides the provider-level basic authentication configuration.",
+				MarkdownDescription: "Credentials for basic authentication for this specific request. " +
+					"When specified, this overrides the provider-level basic authentication configuration.",
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"username": schema.StringAttribute{
+						Description:         "The username for basic authentication.",
+						MarkdownDescription: "The username for basic authentication.",
+						Required:            true,
+					},
+					"password": schema.StringAttribute{
+						Description:         "The password for basic authentication.",
+						MarkdownDescription: "The password for basic authentication.",
+						Required:            true,
+						Sensitive:           true,
+					},
+				},
+			},
+			"ignore_tls": helpers.BoolAttribute(
+				false,
+				"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
+					"When specified, this overrides the provider-level ignore_tls configuration.",
+			),
+
 			"is_response_body_json": helpers.BoolAttribute(
 				false,
 				"A boolean flag indicating whether the response body is expected to be in JSON format.",
@@ -267,18 +312,19 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	//nolint:bodyclose // closed in defer with error handling
-	response, err := it.internal.Client.Do(request)
+	client := it.getHTTPClient(ctx, model)
+	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
 		return
 	}
-	defer func(Body io.ReadCloser) {
-		err = Body.Close()
-		if err != nil {
-			resp.Diagnostics.AddError("Error closing the response body...", err.Error())
+	defer func() {
+		if response != nil && response.Body != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				resp.Diagnostics.AddError("Error closing the response body...", closeErr.Error())
+			}
 		}
-	}(response.Body)
+	}()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -463,7 +509,8 @@ func (it *HTTPRequestResource) Delete(
 		return
 	}
 
-	response, err := it.internal.Client.Do(request)
+	client := it.getHTTPClient(ctx, model)
+	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing DELETE HTTP request", err.Error())
 		return
@@ -558,7 +605,21 @@ func (it *HTTPRequestResource) buildRequest(
 
 	applyDefaultJSONHeaders(req.Header, isBoolTrue(model.IsResponseBodyJSON), looksJSON)
 
-	if it.internal.Config.HasAuthentication() {
+	// Apply authentication - resource-level takes precedence over provider-level
+	if !model.BasicAuth.IsNull() {
+		// Use resource-level basic auth
+		authAttrs := model.BasicAuth.Attributes()
+		username, ok := authAttrs["username"].(types.String)
+		if !ok {
+			return nil, errors.New("failed to get username from basic_auth")
+		}
+		password, ok := authAttrs["password"].(types.String)
+		if !ok {
+			return nil, errors.New("failed to get password from basic_auth")
+		}
+		req.SetBasicAuth(username.ValueString(), password.ValueString())
+	} else if it.internal.Config.HasAuthentication() {
+		// Fall back to provider-level basic auth
 		req.SetBasicAuth(
 			it.internal.Config.BasicAuth.Username,
 			it.internal.Config.BasicAuth.Password,
@@ -746,6 +807,21 @@ func decodeImportPayloadToModel(
 	importPayload string,
 	diagnostics *diag.Diagnostics,
 ) *HTTPRequestResourceModel {
+	nativeModel, id := parseImportPayload(importPayload, diagnostics)
+	if nativeModel == nil {
+		return nil
+	}
+
+	model := buildModelFromNativeData(nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
+
+	model.ID = types.StringValue(id)
+	return model
+}
+
+func parseImportPayload(importPayload string, diagnostics *diag.Diagnostics) (*HTTPRequestResourceModelNative, string) {
 	// Format: <RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>
 	parts := strings.Split(importPayload, "/")
 	if len(parts) != AmountOfPartsInID {
@@ -753,7 +829,7 @@ func decodeImportPayloadToModel(
 			"Invalid Import Identifier please check the Base64 encoding...",
 			"Expected a string with the format <RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>.",
 		)
-		return nil
+		return nil, ""
 	}
 
 	// Decode the base64 string
@@ -763,7 +839,7 @@ func decodeImportPayloadToModel(
 			"Invalid Import Identifier please check the Base64 encoding...",
 			fmt.Sprintf("Failed to decode Base64 identifier here is the specific cause: %v", err),
 		)
-		return nil
+		return nil, ""
 	}
 
 	// Unmarshal the JSON to the intermediate struct
@@ -773,23 +849,60 @@ func decodeImportPayloadToModel(
 			"Error unmarshalling the JSON to the intermediate struct...",
 			err.Error(),
 		)
+		return nil, ""
+	}
+
+	return &nativeModel, parts[0]
+}
+
+func buildModelFromNativeData(
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) *HTTPRequestResourceModel {
+	model := createBaseModel(nativeModel)
+
+	setOptionalStringFields(model, nativeModel)
+	setResourceLevelFields(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
 		return nil
 	}
 
-	model := &HTTPRequestResourceModel{
-		ID:     types.StringValue(parts[0]),
-		Method: types.StringValue(nativeModel.Method),
-		Path:   types.StringValue(nativeModel.Path),
+	setMapFields(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
 
+	return model
+}
+
+func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestResourceModel {
+	model := &HTTPRequestResourceModel{
+		Method:             types.StringValue(nativeModel.Method),
+		Path:               types.StringValue(nativeModel.Path),
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
-
-		// delete controls
-		IsDeleteEnabled:   types.BoolValue(nativeModel.IsDeleteEnabled),
-		DeleteMethod:      types.StringValue(nativeModel.DeleteMethod),
-		DeletePath:        types.StringValue(nativeModel.DeletePath),
-		DeleteRequestBody: types.StringValue(nativeModel.DeleteRequestBody),
 	}
+
+	// Handle delete controls - only set if they were actually provided or true
+	if nativeModel.IsDeleteEnabled {
+		model.IsDeleteEnabled = types.BoolValue(nativeModel.IsDeleteEnabled)
+	}
+
+	return model
+}
+
+func setOptionalStringFields(model *HTTPRequestResourceModel, nativeModel *HTTPRequestResourceModelNative) {
+	// Handle delete fields only if provided
+	if len(nativeModel.DeleteMethod) > 0 {
+		model.DeleteMethod = types.StringValue(nativeModel.DeleteMethod)
+	}
+	if len(nativeModel.DeletePath) > 0 {
+		model.DeletePath = types.StringValue(nativeModel.DeletePath)
+	}
+	if len(nativeModel.DeleteRequestBody) > 0 {
+		model.DeleteRequestBody = types.StringValue(nativeModel.DeleteRequestBody)
+	}
+
 	// avoid optional values being in the state as empty (string)
 	if len(nativeModel.RequestBody) > 0 {
 		model.RequestBody = types.StringValue(nativeModel.RequestBody)
@@ -803,6 +916,69 @@ func decodeImportPayloadToModel(
 	if len(nativeModel.ResponseBodyID) > 0 {
 		model.ResponseBodyID = types.StringValue(nativeModel.ResponseBodyID)
 	}
+}
+
+func setResourceLevelFields(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
+	// Handle new resource-level configuration fields
+	if len(nativeModel.BaseURL) > 0 {
+		model.BaseURL = types.StringValue(nativeModel.BaseURL)
+	}
+
+	// Only set ignore_tls if it was explicitly true in the imported data
+	if nativeModel.IgnoreTLS {
+		model.IgnoreTLS = types.BoolValue(nativeModel.IgnoreTLS)
+	}
+
+	// Handle BasicAuth object - must always be initialized with correct type
+	setBasicAuthField(model, nativeModel, diagnostics)
+}
+
+func setBasicAuthField(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
+	if len(nativeModel.BasicAuth) > 0 {
+		basicAuthMap := make(map[string]attr.Value)
+		if username, ok := nativeModel.BasicAuth["username"]; ok {
+			basicAuthMap["username"] = types.StringValue(username)
+		}
+		if password, ok := nativeModel.BasicAuth["password"]; ok {
+			basicAuthMap["password"] = types.StringValue(password)
+		}
+		basicAuthObj, diags := types.ObjectValue(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+			},
+			basicAuthMap,
+		)
+		if diags.HasError() {
+			diagnostics.Append(diags...)
+			return
+		}
+		model.BasicAuth = basicAuthObj
+	} else {
+		// Initialize as null object with correct type structure
+		basicAuthObj := types.ObjectNull(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+			},
+		)
+		model.BasicAuth = basicAuthObj
+	}
+}
+
+func setMapFields(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
 	// avoid optional values being in the state as empty (map)
 	headers, diags := types.MapValueFrom(
 		context.Background(),
@@ -811,7 +987,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.Headers = headers
 
@@ -822,7 +998,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.QueryParameters = queryParameters
 
@@ -833,7 +1009,7 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.DeleteHeaders = deleteHeaders
 
@@ -844,11 +1020,9 @@ func decodeImportPayloadToModel(
 	)
 	if diags.HasError() {
 		diagnostics.Append(diags...)
-		return nil
+		return
 	}
 	model.ResponseBodyJSON = responseBodyJSON
-
-	return model
 }
 
 func (it *HTTPRequestResource) buildFullURL(
@@ -857,7 +1031,23 @@ func (it *HTTPRequestResource) buildFullURL(
 ) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	baseURL, err := url.Parse(it.internal.Config.URL)
+	var baseURLString string
+	switch {
+	case !model.BaseURL.IsNull() && model.BaseURL.ValueString() != "":
+		baseURLString = model.BaseURL.ValueString()
+	case it.internal != nil && it.internal.Config != nil && it.internal.Config.URL != "":
+		baseURLString = it.internal.Config.URL
+	default:
+		diags.AddError(
+			"No base URL configured",
+			"A base URL must be configured either at the provider level (using the 'url' attribute) "+
+				"or at the resource level (using the 'base_url' attribute). "+
+				"This is required to construct the full URL for the HTTP request.",
+		)
+		return "", diags
+	}
+
+	baseURL, err := url.Parse(baseURLString)
 	if err != nil {
 		diags.AddError("Error parsing base URL", err.Error())
 		return "", diags
@@ -893,4 +1083,54 @@ func (it *HTTPRequestResource) buildFullURL(
 
 	finalURL := baseURL.String()
 	return finalURL, diags
+}
+
+// getHTTPClient returns the HTTP client to use for this request,
+// taking into account resource-level TLS configuration.
+func (it *HTTPRequestResource) getHTTPClient(
+	_ context.Context,
+	model HTTPRequestResourceModel,
+) *http.Client {
+	// Check if resource-level ignore_tls setting should override provider-level
+	var ignoreTLS bool
+	switch {
+	case !model.IgnoreTLS.IsNull():
+		ignoreTLS = model.IgnoreTLS.ValueBool()
+	case it.internal.Client.Transport != nil:
+		// Fall back to provider-level setting (default is false if not set)
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
+			ignoreTLS = transport.TLSClientConfig.InsecureSkipVerify
+		}
+	}
+
+	// If resource-level setting matches what's already configured, reuse the client
+	currentIgnoreTLS := false
+	if it.internal.Client.Transport != nil {
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok {
+			if transport.TLSClientConfig != nil {
+				currentIgnoreTLS = transport.TLSClientConfig.InsecureSkipVerify
+			}
+		}
+	}
+
+	if ignoreTLS == currentIgnoreTLS {
+		return it.internal.Client
+	}
+
+	// Create a new client with the desired TLS configuration
+	client := &http.Client{}
+	if ignoreTLS {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS13,
+				// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled
+				// This is a user-controlled feature for testing and self-signed certificates
+				//nolint:gosec // purposefully ignore TLS verification according to user configuration
+				InsecureSkipVerify: true,
+			},
+		}
+		client.Transport = transport
+	}
+
+	return client
 }

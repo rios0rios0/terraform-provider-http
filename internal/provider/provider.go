@@ -51,11 +51,11 @@ func GetHTTPProviderSchema() schema.Schema {
 			"url": schema.StringAttribute{
 				Description: "The base URL for all HTTP requests made by this provider. " +
 					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
-					"It is a required attribute and must be specified to ensure proper communication with the target.",
+					"This is optional when base_url is specified at the resource level.",
 				MarkdownDescription: "The base URL for all HTTP requests made by this provider. " +
 					"This URL serves as the root endpoint for the Web endpoint that the provider will interact with. " +
-					"It is a required attribute and must be specified to ensure proper communication with the target.",
-				Required: true,
+					"This is optional when base_url is specified at the resource level.",
+				Optional: true,
 				// TODO: Validators: []validator.String{validators.NewStringNotEmpty("url")},
 			},
 			"basic_auth": schema.SingleNestedAttribute{
@@ -132,14 +132,7 @@ func (it *HTTPProvider) ValidateConfig(
 		"set the value statically in the configuration, "
 
 	// you can't access the content here because they're not known yet, they'll be known in the Configure method
-	if model.URL.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("url"),
-			"Unknown URL for HTTP client",
-			"The provider cannot create the HTTP client as there is a null configuration value for the URL. "+
-				detailMessage+"or use the PROVIDER_HTTP_URL environment variable.",
-		)
-	}
+	// URL is now optional since it can be provided at the resource level
 
 	if !model.BasicAuth.IsNull() {
 		username := model.BasicAuth.Attributes()["username"]
@@ -182,7 +175,7 @@ func (it *HTTPProvider) Configure(
 	url := os.Getenv("PROVIDER_HTTP_URL")
 	username := os.Getenv("PROVIDER_HTTP_USERNAME")
 	password := os.Getenv("PROVIDER_HTTP_PASSWORD")
-	if url == "" {
+	if url == "" && !model.URL.IsNull() {
 		url = model.URL.ValueString()
 	}
 	if !model.BasicAuth.IsNull() { // double-checking because it is optional
@@ -211,7 +204,7 @@ func (it *HTTPProvider) Configure(
 
 	internal := entities.NewInternalContext(
 		model.IgnoreTLS.ValueBool(),
-		entities.NewConfiguration(url),
+		entities.NewConfiguration(url), // URL can be empty string if only using resource-level URLs
 	)
 	if !model.BasicAuth.IsNull() {
 		internal.Config.BasicAuth = &entities.BasicAuth{

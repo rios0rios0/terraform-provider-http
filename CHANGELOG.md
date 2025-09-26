@@ -17,6 +17,17 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added resource-level configuration support for `base_url`, `basic_auth`, and `ignore_tls` attributes in `http_request` resource
+- added ability to use `count` and `for_each` with different APIs by specifying configuration at resource level instead of provider level
+- added validation to ensure at least one base URL is configured (either at provider or resource level)
+
+### Changed
+
+- changed provider-level `url` attribute from required to optional (can now be provided at resource level)
+- improved error handling with clear messages when no base URL is configured anywhere
+
 ## [2.2.0] - 2025-08-22
 
 ### Added

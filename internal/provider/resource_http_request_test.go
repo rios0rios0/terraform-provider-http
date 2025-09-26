@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"testing"
 
@@ -553,6 +554,162 @@ func TestHTTPRequestResource(t *testing.T) {
 				},
 			})
 		}
+	})
+
+	// New tests for resource-level configuration feature
+	t.Run("should work with resource-level base URL", func(t *testing.T) {
+		config := builders.NewProviderTFBuilder().Build() + // No provider-level URL
+			builders.NewResourceTFBuilder().
+				WithName("test_resource_url").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithBaseURL("https://jsonplaceholder.typicode.com").
+				WithIsResponseBodyJSON(true).
+				WithResponseBodyIDFilter("$.id").
+				Build()
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			PreventPostDestroyRefresh: true,
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: config,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_resource_url", "response_code", "200"),
+						resource.TestCheckResourceAttrSet("http_request.test_resource_url", "response_body_id"),
+						resource.TestCheckResourceAttr("http_request.test_resource_url", "base_url", "https://jsonplaceholder.typicode.com"),
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should work with resource-level basic auth", func(t *testing.T) {
+		config := builders.NewProviderTFBuilder().Build() + // No provider-level auth
+			builders.NewResourceTFBuilder().
+				WithName("test_resource_auth").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithBaseURL("https://jsonplaceholder.typicode.com").
+				WithBasicAuth("testuser", "testpass").
+				WithIsResponseBodyJSON(true).
+				WithResponseBodyIDFilter("$.id").
+				Build()
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			PreventPostDestroyRefresh: true,
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: config,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_resource_auth", "response_code", "200"),
+						resource.TestCheckResourceAttrSet("http_request.test_resource_auth", "response_body_id"),
+						resource.TestCheckResourceAttr("http_request.test_resource_auth", "basic_auth.username", "testuser"),
+						// Password should be sensitive and not directly checkable
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should work with resource-level ignore_tls", func(t *testing.T) {
+		config := builders.NewProviderTFBuilder().Build() + // No provider-level TLS config
+			builders.NewResourceTFBuilder().
+				WithName("test_resource_tls").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithBaseURL("https://jsonplaceholder.typicode.com").
+				WithIgnoreTLS(true).
+				WithIsResponseBodyJSON(true).
+				WithResponseBodyIDFilter("$.id").
+				Build()
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			PreventPostDestroyRefresh: true,
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: config,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_resource_tls", "response_code", "200"),
+						resource.TestCheckResourceAttrSet("http_request.test_resource_tls", "response_body_id"),
+						resource.TestCheckResourceAttr("http_request.test_resource_tls", "ignore_tls", "true"),
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should work with mixed provider and resource level configurations", func(t *testing.T) {
+		config := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			WithIgnoreTLS(true).
+			Build() +
+			// Resource using provider-level configuration
+			builders.NewResourceTFBuilder().
+				WithName("test_provider_config").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsResponseBodyJSON(true).
+				WithResponseBodyIDFilter("$.id").
+				Build() +
+			// Resource overriding with resource-level configuration
+			builders.NewResourceTFBuilder().
+				WithName("test_resource_config").
+				WithMethod("GET").
+				WithPath("/posts/2").
+				WithBaseURL("https://jsonplaceholder.typicode.com"). // Override base URL
+				WithIgnoreTLS(false).                               // Override TLS setting
+				WithIsResponseBodyJSON(true).
+				WithResponseBodyIDFilter("$.id").
+				Build()
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			PreventPostDestroyRefresh: true,
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: config,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						// First resource should use provider config
+						resource.TestCheckResourceAttr("http_request.test_provider_config", "response_code", "200"),
+						resource.TestCheckResourceAttrSet("http_request.test_provider_config", "response_body_id"),
+						resource.TestCheckNoResourceAttr("http_request.test_provider_config", "base_url"),
+						
+						// Second resource should use resource-level config
+						resource.TestCheckResourceAttr("http_request.test_resource_config", "response_code", "200"),
+						resource.TestCheckResourceAttrSet("http_request.test_resource_config", "response_body_id"),
+						resource.TestCheckResourceAttr("http_request.test_resource_config", "base_url", "https://jsonplaceholder.typicode.com"),
+						resource.TestCheckResourceAttr("http_request.test_resource_config", "ignore_tls", "false"),
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should return error when no base URL is configured", func(t *testing.T) {
+		config := builders.NewProviderTFBuilder().Build() + // No provider-level URL
+			builders.NewResourceTFBuilder().
+				WithName("test_no_url").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				Build() // No resource-level base_url either
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config:      config,
+					ExpectError: regexp.MustCompile("No base URL configured"),
+				},
+			},
+		})
 	})
 }
 
