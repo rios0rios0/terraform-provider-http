@@ -1006,7 +1006,9 @@ func (it *HTTPRequestResource) getHTTPClient(
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS13,
-				//nolint:gosec // purposefully ignore TLS verification according the flag
+				// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled
+				// This is a user-controlled feature for testing and self-signed certificates
+				//nolint:gosec // purposefully ignore TLS verification according to user configuration
 				InsecureSkipVerify: true,
 			},
 		}
