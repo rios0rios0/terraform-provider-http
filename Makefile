@@ -1,21 +1,8 @@
-VERSION = 2.2.0
 SCRIPTS_DIR := $(HOME)/Development/github.com/rios0rios0/pipelines
 REPO_URL    := https://github.com/rios0rios0/pipelines.git
 
-.PHONY: build install uninstall docs test scripts lint lint-fix
-default: test
-
-build:
-	go build -o bin/terraform-provider-http
-
-install:
-	make build
-	#		 ~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
-	mkdir -p ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
-	cp bin/terraform-provider-http ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
-
-uninstall:
-	rm -rf ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
+.PHONY: all scripts lint lint-fix horusec test build install uninstall docs
+all: lint horusec semgrep gitleaks test
 
 scripts:
 	if [ ! -d "$(SCRIPTS_DIR)" ]; then \
@@ -30,12 +17,35 @@ lint: scripts
 lint-fix: scripts
 	$(SCRIPTS_DIR)/global/scripts/golangci-lint/run.sh --fix .
 
+horusec: scripts
+	$(SCRIPTS_DIR)/global/scripts/horusec/run.sh .
+
+semgrep: scripts
+	$(SCRIPTS_DIR)/global/scripts/semgrep/run.sh "golang"
+
+gitleaks: scripts
+	$(SCRIPTS_DIR)/global/scripts/gitleaks/run.sh .
+
+test: scripts
+	$(SCRIPTS_DIR)/global/scripts/golang/test/run.sh .
+
+
+VERSION = 2.2.0
+
 docs:
 	export GOBIN=$PWD/bin
 	export PATH=$GOBIN:$PATH
 	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 	tfplugindocs generate
 
-test:
-	TF_ACC=1 go test -v -tags test,unit,integration -coverpkg=./... -covermode=count -coverprofile=coverage.txt -timeout 120m ./... | grep -v '\[no test files\]'
-	go tool cover -func coverage.txt
+build:
+	go build -o bin/terraform-provider-http
+
+install:
+	make build
+	#		 ~/.terraform.d/plugins/${host_name}/${namespace}/${type}/${version}/${target}
+	mkdir -p ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
+	cp bin/terraform-provider-http ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
+
+uninstall:
+	rm -rf ~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/
