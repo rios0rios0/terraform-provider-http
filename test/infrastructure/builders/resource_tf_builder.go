@@ -67,6 +67,25 @@ func (b *ResourceTFBuilder) WithQueryParameters(queryParameters map[string]strin
 	return b
 }
 
+// Resource-level configuration methods
+func (b *ResourceTFBuilder) WithBaseURL(baseURL string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("base_url = \"%s\"\n", baseURL)
+	return b
+}
+
+func (b *ResourceTFBuilder) WithBasicAuth(username, password string) *ResourceTFBuilder {
+	b.config += "basic_auth = {\n"
+	b.config += fmt.Sprintf("  username = \"%s\"\n", username)
+	b.config += fmt.Sprintf("  password = \"%s\"\n", password)
+	b.config += "}\n"
+	return b
+}
+
+func (b *ResourceTFBuilder) WithIgnoreTLS(ignoreTLS bool) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("ignore_tls = %t\n", ignoreTLS)
+	return b
+}
+
 func (b *ResourceTFBuilder) WithIsDeleteEnabled(isDeleteEnabled bool) *ResourceTFBuilder {
 	b.config += fmt.Sprintf("is_delete_enabled = %t\n", isDeleteEnabled)
 	return b

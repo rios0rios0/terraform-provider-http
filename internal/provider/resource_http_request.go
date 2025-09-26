@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -55,6 +56,11 @@ type HTTPRequestResourceModel struct {
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
 
+	// resource-level configuration (alternative to provider-level)
+	BaseURL   types.String `tfsdk:"base_url"`
+	BasicAuth types.Object `tfsdk:"basic_auth"`
+	IgnoreTLS types.Bool   `tfsdk:"ignore_tls"`
+
 	// destroy controls
 	IsDeleteEnabled    types.Bool   `tfsdk:"is_delete_enabled"`
 	DeleteMethod       types.String `tfsdk:"delete_method"`
@@ -81,6 +87,11 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+
+	// resource-level configuration (alternative to provider-level)
+	BaseURL   string            `json:"base_url,omitempty"`
+	BasicAuth map[string]string `json:"basic_auth,omitempty"`
+	IgnoreTLS bool              `json:"ignore_tls,omitempty"`
 
 	// destroy controls
 	IsDeleteEnabled   bool              `json:"is_delete_enabled,omitempty"`
@@ -126,6 +137,39 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 				false,
 				"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.",
 			),
+
+			// resource-level configuration (alternative to provider-level)
+			"base_url": helpers.StringAttribute(
+				false,
+				"The base URL for this specific HTTP request. When specified, this overrides the provider-level URL "+
+					"configuration. This allows for different APIs to be used within the same configuration.",
+			),
+			"basic_auth": schema.SingleNestedAttribute{
+				Description: "Credentials for basic authentication for this specific request. " +
+					"When specified, this overrides the provider-level basic authentication configuration.",
+				MarkdownDescription: "Credentials for basic authentication for this specific request. " +
+					"When specified, this overrides the provider-level basic authentication configuration.",
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"username": schema.StringAttribute{
+						Description:         "The username for basic authentication.",
+						MarkdownDescription: "The username for basic authentication.",
+						Required:            true,
+					},
+					"password": schema.StringAttribute{
+						Description:         "The password for basic authentication.",
+						MarkdownDescription: "The password for basic authentication.",
+						Required:            true,
+						Sensitive:           true,
+					},
+				},
+			},
+			"ignore_tls": helpers.BoolAttribute(
+				false,
+				"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
+					"When specified, this overrides the provider-level ignore_tls configuration.",
+			),
+
 			"is_response_body_json": helpers.BoolAttribute(
 				false,
 				"A boolean flag indicating whether the response body is expected to be in JSON format.",
@@ -268,7 +312,8 @@ func (it *HTTPRequestResource) Create(
 	}
 
 	//nolint:bodyclose // closed in defer with error handling
-	response, err := it.internal.Client.Do(request)
+	client := it.getHTTPClient(ctx, model)
+	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
 		return
@@ -463,7 +508,8 @@ func (it *HTTPRequestResource) Delete(
 		return
 	}
 
-	response, err := it.internal.Client.Do(request)
+	client := it.getHTTPClient(ctx, model)
+	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing DELETE HTTP request", err.Error())
 		return
@@ -558,7 +604,15 @@ func (it *HTTPRequestResource) buildRequest(
 
 	applyDefaultJSONHeaders(req.Header, isBoolTrue(model.IsResponseBodyJSON), looksJSON)
 
-	if it.internal.Config.HasAuthentication() {
+	// Apply authentication - resource-level takes precedence over provider-level
+	if !model.BasicAuth.IsNull() {
+		// Use resource-level basic auth
+		authAttrs := model.BasicAuth.Attributes()
+		username := authAttrs["username"].(types.String).ValueString()
+		password := authAttrs["password"].(types.String).ValueString()
+		req.SetBasicAuth(username, password)
+	} else if it.internal.Config.HasAuthentication() {
+		// Fall back to provider-level basic auth
 		req.SetBasicAuth(
 			it.internal.Config.BasicAuth.Username,
 			it.internal.Config.BasicAuth.Password,
@@ -857,7 +911,23 @@ func (it *HTTPRequestResource) buildFullURL(
 ) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	baseURL, err := url.Parse(it.internal.Config.URL)
+	// Use resource-level base URL if provided, otherwise fall back to provider-level
+	var baseURLString string
+	if !model.BaseURL.IsNull() && model.BaseURL.ValueString() != "" {
+		baseURLString = model.BaseURL.ValueString()
+	} else if it.internal != nil && it.internal.Config != nil && it.internal.Config.URL != "" {
+		baseURLString = it.internal.Config.URL
+	} else {
+		diags.AddError(
+			"No base URL configured",
+			"A base URL must be configured either at the provider level (using the 'url' attribute) "+
+				"or at the resource level (using the 'base_url' attribute). "+
+				"This is required to construct the full URL for the HTTP request.",
+		)
+		return "", diags
+	}
+
+	baseURL, err := url.Parse(baseURLString)
 	if err != nil {
 		diags.AddError("Error parsing base URL", err.Error())
 		return "", diags
@@ -893,4 +963,55 @@ func (it *HTTPRequestResource) buildFullURL(
 
 	finalURL := baseURL.String()
 	return finalURL, diags
+}
+
+// getHTTPClient returns the HTTP client to use for this request, 
+// taking into account resource-level TLS configuration
+func (it *HTTPRequestResource) getHTTPClient(
+	ctx context.Context,
+	model HTTPRequestResourceModel,
+) *http.Client {
+	// Check if resource-level ignore_tls setting should override provider-level
+	var ignoreTLS bool
+	if !model.IgnoreTLS.IsNull() {
+		ignoreTLS = model.IgnoreTLS.ValueBool()
+	} else {
+		// Fall back to provider-level setting (default is false if not set)
+		if it.internal.Client.Transport != nil {
+			if transport, ok := it.internal.Client.Transport.(*http.Transport); ok {
+				if transport.TLSClientConfig != nil {
+					ignoreTLS = transport.TLSClientConfig.InsecureSkipVerify
+				}
+			}
+		}
+	}
+
+	// If resource-level setting matches what's already configured, reuse the client
+	currentIgnoreTLS := false
+	if it.internal.Client.Transport != nil {
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok {
+			if transport.TLSClientConfig != nil {
+				currentIgnoreTLS = transport.TLSClientConfig.InsecureSkipVerify
+			}
+		}
+	}
+
+	if ignoreTLS == currentIgnoreTLS {
+		return it.internal.Client
+	}
+
+	// Create a new client with the desired TLS configuration
+	client := &http.Client{}
+	if ignoreTLS {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS13,
+				//nolint:gosec // purposefully ignore TLS verification according the flag
+				InsecureSkipVerify: true,
+			},
+		}
+		client.Transport = transport
+	}
+
+	return client
 }
