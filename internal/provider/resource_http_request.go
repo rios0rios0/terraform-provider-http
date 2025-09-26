@@ -844,12 +844,66 @@ func decodeImportPayloadToModel(
 
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
+	}
 
-		// delete controls
-		IsDeleteEnabled:   types.BoolValue(nativeModel.IsDeleteEnabled),
-		DeleteMethod:      types.StringValue(nativeModel.DeleteMethod),
-		DeletePath:        types.StringValue(nativeModel.DeletePath),
-		DeleteRequestBody: types.StringValue(nativeModel.DeleteRequestBody),
+	// Handle delete controls - only set if they were actually provided or true
+	if nativeModel.IsDeleteEnabled {
+		model.IsDeleteEnabled = types.BoolValue(nativeModel.IsDeleteEnabled)
+	}
+
+	// Handle delete method only if provided
+	if len(nativeModel.DeleteMethod) > 0 {
+		model.DeleteMethod = types.StringValue(nativeModel.DeleteMethod)
+	}
+	// Handle delete path only if provided
+	if len(nativeModel.DeletePath) > 0 {
+		model.DeletePath = types.StringValue(nativeModel.DeletePath)
+	}
+	// Handle delete request body only if provided
+	if len(nativeModel.DeleteRequestBody) > 0 {
+		model.DeleteRequestBody = types.StringValue(nativeModel.DeleteRequestBody)
+	}
+
+	// Handle new resource-level configuration fields
+	if len(nativeModel.BaseURL) > 0 {
+		model.BaseURL = types.StringValue(nativeModel.BaseURL)
+	}
+
+	// Only set ignore_tls if it was explicitly true in the imported data
+	if nativeModel.IgnoreTLS {
+		model.IgnoreTLS = types.BoolValue(nativeModel.IgnoreTLS)
+	}
+
+	// Handle BasicAuth object - must always be initialized with correct type
+	if len(nativeModel.BasicAuth) > 0 {
+		basicAuthMap := make(map[string]attr.Value)
+		if username, ok := nativeModel.BasicAuth["username"]; ok {
+			basicAuthMap["username"] = types.StringValue(username)
+		}
+		if password, ok := nativeModel.BasicAuth["password"]; ok {
+			basicAuthMap["password"] = types.StringValue(password)
+		}
+		basicAuthObj, diags := types.ObjectValue(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+			},
+			basicAuthMap,
+		)
+		if diags.HasError() {
+			diagnostics.Append(diags...)
+			return nil
+		}
+		model.BasicAuth = basicAuthObj
+	} else {
+		// Initialize as null object with correct type structure
+		basicAuthObj := types.ObjectNull(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+			},
+		)
+		model.BasicAuth = basicAuthObj
 	}
 	// avoid optional values being in the state as empty (string)
 	if len(nativeModel.RequestBody) > 0 {
