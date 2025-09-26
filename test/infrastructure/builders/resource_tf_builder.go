@@ -67,7 +67,7 @@ func (b *ResourceTFBuilder) WithQueryParameters(queryParameters map[string]strin
 	return b
 }
 
-// Resource-level configuration methods
+// WithBaseURL adds a base URL to the resource configuration.
 func (b *ResourceTFBuilder) WithBaseURL(baseURL string) *ResourceTFBuilder {
 	b.config += fmt.Sprintf("base_url = \"%s\"\n", baseURL)
 	return b

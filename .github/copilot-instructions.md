@@ -14,12 +14,16 @@ Always reference these instructions first and fall back to search or bash comman
 - `make install` -- builds and installs provider locally for testing. Takes ~1 second. 
 - `make test` -- runs full test suite with coverage. Takes ~4 seconds. NEVER CANCEL. Set timeout to 30+ seconds.
 - `make docs` -- generates provider documentation. Takes ~2 seconds. NEVER CANCEL.
+- `make lint` -- runs comprehensive linting using golangci-lint. Takes ~1 minute. NEVER CANCEL.
+- `make lint-fix` -- runs linting and automatically fixes issues where possible.
 
 ### Linting and Code Quality
+- `make lint` -- runs comprehensive linting using golangci-lint from pipelines project. Takes ~1 minute. NEVER CANCEL.
+- `make lint-fix` -- runs linting and automatically fixes issues where possible.
 - `go fmt ./...` -- formats Go code
 - `go vet ./...` -- runs Go static analysis
-- Install `golangci-lint`: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /tmp v1.62.2`
-- `/tmp/golangci-lint run ./...` -- runs comprehensive linting. Takes ~1 minute. NEVER CANCEL. Set timeout to 120+ seconds.
+- Alternative: Install `golangci-lint`: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /tmp v1.62.2`
+- Alternative: `/tmp/golangci-lint run ./...` -- runs comprehensive linting. Takes ~1 minute. NEVER CANCEL. Set timeout to 120+ seconds.
 
 ### Manual Provider Testing
 - Always run `make install` before testing provider changes
@@ -57,14 +61,17 @@ resource "http_request" "test_request" {
 ### Always Test These Scenarios After Changes
 1. **Build and Install**: `make build && make install` -- must complete without errors
 2. **Test Suite**: `make test` -- all tests must pass with a coverage report
-3. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/2.2.0/linux_amd64/`
-4. **Terraform Integration**: `terraform init` and `terraform plan` must work with local provider
-5. **Documentation**: `make docs` must generate clean documentation in `docs/` directory
+3. **Linting**: `make lint` -- all linting issues must be resolved
+4. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/2.2.0/linux_amd64/`
+5. **Terraform Integration**: `terraform init` and `terraform plan` must work with local provider
+6. **Documentation**: `make docs` must generate clean documentation in `docs/` directory
+7. **CHANGELOG.md**: **ALWAYS update CHANGELOG.md** with changes in the `[Unreleased]` section
 
 ### Code Quality Checks
+- Run `make lint` and `make lint-fix` to check and fix linting issues
 - Run `go fmt ./...` and `go vet ./...` before committing
-- Install and run `golangci-lint` for comprehensive static analysis
-- All tests must maintain or improve coverage (currently 45.8% total coverage)
+- All tests must maintain or improve coverage (currently 79.2% total coverage)
+- **ALWAYS update CHANGELOG.md** in the `[Unreleased]` section when making changes
 
 ## Key Codebase Navigation
 

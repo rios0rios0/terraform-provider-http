@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -311,19 +312,19 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	//nolint:bodyclose // closed in defer with error handling
 	client := it.getHTTPClient(ctx, model)
 	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
 		return
 	}
-	defer func(Body io.ReadCloser) {
-		err = Body.Close()
-		if err != nil {
-			resp.Diagnostics.AddError("Error closing the response body...", err.Error())
+	defer func() {
+		if response != nil && response.Body != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				resp.Diagnostics.AddError("Error closing the response body...", closeErr.Error())
+			}
 		}
-	}(response.Body)
+	}()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -608,9 +609,15 @@ func (it *HTTPRequestResource) buildRequest(
 	if !model.BasicAuth.IsNull() {
 		// Use resource-level basic auth
 		authAttrs := model.BasicAuth.Attributes()
-		username := authAttrs["username"].(types.String).ValueString()
-		password := authAttrs["password"].(types.String).ValueString()
-		req.SetBasicAuth(username, password)
+		username, ok := authAttrs["username"].(types.String)
+		if !ok {
+			return nil, errors.New("failed to get username from basic_auth")
+		}
+		password, ok := authAttrs["password"].(types.String)
+		if !ok {
+			return nil, errors.New("failed to get password from basic_auth")
+		}
+		req.SetBasicAuth(username.ValueString(), password.ValueString())
 	} else if it.internal.Config.HasAuthentication() {
 		// Fall back to provider-level basic auth
 		req.SetBasicAuth(
@@ -911,13 +918,13 @@ func (it *HTTPRequestResource) buildFullURL(
 ) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// Use resource-level base URL if provided, otherwise fall back to provider-level
 	var baseURLString string
-	if !model.BaseURL.IsNull() && model.BaseURL.ValueString() != "" {
+	switch {
+	case !model.BaseURL.IsNull() && model.BaseURL.ValueString() != "":
 		baseURLString = model.BaseURL.ValueString()
-	} else if it.internal != nil && it.internal.Config != nil && it.internal.Config.URL != "" {
+	case it.internal != nil && it.internal.Config != nil && it.internal.Config.URL != "":
 		baseURLString = it.internal.Config.URL
-	} else {
+	default:
 		diags.AddError(
 			"No base URL configured",
 			"A base URL must be configured either at the provider level (using the 'url' attribute) "+
@@ -966,23 +973,20 @@ func (it *HTTPRequestResource) buildFullURL(
 }
 
 // getHTTPClient returns the HTTP client to use for this request,
-// taking into account resource-level TLS configuration
+// taking into account resource-level TLS configuration.
 func (it *HTTPRequestResource) getHTTPClient(
-	ctx context.Context,
+	_ context.Context,
 	model HTTPRequestResourceModel,
 ) *http.Client {
 	// Check if resource-level ignore_tls setting should override provider-level
 	var ignoreTLS bool
-	if !model.IgnoreTLS.IsNull() {
+	switch {
+	case !model.IgnoreTLS.IsNull():
 		ignoreTLS = model.IgnoreTLS.ValueBool()
-	} else {
+	case it.internal.Client.Transport != nil:
 		// Fall back to provider-level setting (default is false if not set)
-		if it.internal.Client.Transport != nil {
-			if transport, ok := it.internal.Client.Transport.(*http.Transport); ok {
-				if transport.TLSClientConfig != nil {
-					ignoreTLS = transport.TLSClientConfig.InsecureSkipVerify
-				}
-			}
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
+			ignoreTLS = transport.TLSClientConfig.InsecureSkipVerify
 		}
 	}
 
