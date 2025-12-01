@@ -115,6 +115,18 @@ func (b *ResourceTFBuilder) WithDeleteRequestBody(deleteRequestBody string) *Res
 	return b
 }
 
+func (b *ResourceTFBuilder) WithIgnoreChanges(entries []string) *ResourceTFBuilder {
+	if len(entries) == 0 {
+		return b
+	}
+	b.config += "ignore_changes = [\n"
+	for _, entry := range entries {
+		b.config += fmt.Sprintf("  \"%s\",\n", entry)
+	}
+	b.config += "]\n"
+	return b
+}
+
 func (b *ResourceTFBuilder) Build() string {
 	return fmt.Sprintf(baseResourceTF, b.config)
 }

@@ -42,6 +42,11 @@ func (b *ResourceTypeBuilder) WithResponseBodyIDFilter() *ResourceTypeBuilder {
 	return b
 }
 
+func (b *ResourceTypeBuilder) WithIgnoreChanges() *ResourceTypeBuilder {
+	b.attributeTypes["ignore_changes"] = tftypes.Set{ElementType: tftypes.String}
+	return b
+}
+
 func (b *ResourceTypeBuilder) WithQueryParameters() *ResourceTypeBuilder {
 	b.attributeTypes["query_parameters"] = tftypes.Map{ElementType: tftypes.String}
 	return b

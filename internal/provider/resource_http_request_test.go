@@ -569,9 +569,9 @@ func TestHTTPRequestResource(t *testing.T) {
 				Build()
 
 		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
+			PreCheck:                  func() { testAccPreCheck(t) },
 			PreventPostDestroyRefresh: true,
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			ProtoV6ProviderFactories:  testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
 					Config: config,
@@ -598,9 +598,9 @@ func TestHTTPRequestResource(t *testing.T) {
 				Build()
 
 		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
+			PreCheck:                  func() { testAccPreCheck(t) },
 			PreventPostDestroyRefresh: true,
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			ProtoV6ProviderFactories:  testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
 					Config: config,
@@ -628,9 +628,9 @@ func TestHTTPRequestResource(t *testing.T) {
 				Build()
 
 		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
+			PreCheck:                  func() { testAccPreCheck(t) },
 			PreventPostDestroyRefresh: true,
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			ProtoV6ProviderFactories:  testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
 					Config: config,
@@ -663,15 +663,15 @@ func TestHTTPRequestResource(t *testing.T) {
 				WithMethod("GET").
 				WithPath("/posts/2").
 				WithBaseURL("https://jsonplaceholder.typicode.com"). // Override base URL
-				WithIgnoreTLS(false).                               // Override TLS setting
+				WithIgnoreTLS(false).                                // Override TLS setting
 				WithIsResponseBodyJSON(true).
 				WithResponseBodyIDFilter("$.id").
 				Build()
 
 		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
+			PreCheck:                  func() { testAccPreCheck(t) },
 			PreventPostDestroyRefresh: true,
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			ProtoV6ProviderFactories:  testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
 				{
 					Config: config,
@@ -680,7 +680,7 @@ func TestHTTPRequestResource(t *testing.T) {
 						resource.TestCheckResourceAttr("http_request.test_provider_config", "response_code", "200"),
 						resource.TestCheckResourceAttrSet("http_request.test_provider_config", "response_body_id"),
 						resource.TestCheckNoResourceAttr("http_request.test_provider_config", "base_url"),
-						
+
 						// Second resource should use resource-level config
 						resource.TestCheckResourceAttr("http_request.test_resource_config", "response_code", "200"),
 						resource.TestCheckResourceAttrSet("http_request.test_resource_config", "response_body_id"),
@@ -729,6 +729,7 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 						WithIsResponseBodyJSON().
 						WithResponseBodyIDFilter().
 						WithQueryParameters().
+						WithIgnoreChanges().
 						WithIsDeleteEnabled().
 						WithDeleteMethod().
 						WithDeletePath().
@@ -749,6 +750,7 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, false),
 						"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
 						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
 
 						// Destroy controls
 						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, nil),
@@ -799,6 +801,7 @@ func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
 						WithIsResponseBodyJSON().
 						WithResponseBodyIDFilter().
 						WithQueryParameters().
+						WithIgnoreChanges().
 						WithIsDeleteEnabled().
 						WithDeleteMethod().
 						WithDeletePath().
@@ -819,6 +822,7 @@ func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
 						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
 						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
 						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
 
 						// Destroy controls
 						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),
@@ -864,6 +868,7 @@ func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
 						WithIsResponseBodyJSON().
 						WithResponseBodyIDFilter().
 						WithQueryParameters().
+						WithIgnoreChanges().
 						WithIsDeleteEnabled().
 						WithDeleteMethod().
 						WithDeletePath().
@@ -884,6 +889,7 @@ func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
 						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
 						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
 						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
 
 						// Destroy controls - soft delete example
 						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),

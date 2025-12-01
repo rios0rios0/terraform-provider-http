@@ -37,6 +37,7 @@ var (
 	_ resource.Resource                = &HTTPRequestResource{}
 	_ resource.ResourceWithConfigure   = &HTTPRequestResource{}
 	_ resource.ResourceWithImportState = &HTTPRequestResource{}
+	_ resource.ResourceWithModifyPlan  = &HTTPRequestResource{}
 )
 
 const AmountOfPartsInID = 2
@@ -56,6 +57,7 @@ type HTTPRequestResourceModel struct {
 	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
+	IgnoreChanges        types.Set    `tfsdk:"ignore_changes"`
 
 	// resource-level configuration (alternative to provider-level)
 	BaseURL   types.String `tfsdk:"base_url"`
@@ -88,6 +90,7 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+	IgnoreChanges        []string          `json:"ignore_changes,omitempty"`
 
 	// resource-level configuration (alternative to provider-level)
 	BaseURL   string            `json:"base_url,omitempty"`
@@ -134,6 +137,16 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 			),
 			"query_parameters": helpers.MapAttribute(false, types.StringType,
 				"Optional query parameters to append to the request path"),
+			"ignore_changes": schema.SetAttribute{
+				Description: "Optional list of attribute paths that should not force replacement when they change. " +
+					"Supports top-level attributes (e.g. \"request_body\"), individual map entries (e.g. \"headers.X-Correlation-Id\"), " +
+					"and JSON paths inside request bodies (e.g. \"request_body.metadata.trace_id\").",
+				MarkdownDescription: "Optional list of attribute paths that should not force replacement when they change. " +
+					"Supports top-level attributes (e.g. `request_body`), individual map entries (e.g. `headers.X-Correlation-Id`), " +
+					"and JSON paths inside request bodies (e.g. `request_body.metadata.trace_id`).",
+				Optional:    true,
+				ElementType: types.StringType,
+			},
 			"request_body": helpers.StringAttribute(
 				false,
 				"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.",
@@ -399,6 +412,42 @@ func (it *HTTPRequestResource) Update(
 		Plan:         req.Plan,
 		ProviderMeta: req.ProviderMeta,
 	}, (*resource.CreateResponse)(resp))
+}
+
+func (it *HTTPRequestResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() {
+		return
+	}
+	if req.State.Raw.IsNull() || !req.State.Raw.IsKnown() {
+		return
+	}
+
+	var planModel HTTPRequestResourceModel
+	var stateModel HTTPRequestResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planModel)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &stateModel)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	entries := parseIgnoreEntries(ctx, planModel.IgnoreChanges, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || len(entries) == 0 {
+		return
+	}
+
+	if !applyIgnoreEntries(ctx, entries, &planModel, &stateModel, &resp.Diagnostics) {
+		return
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
 }
 
 func isBoolTrue(v types.Bool) bool {
@@ -872,6 +921,11 @@ func buildModelFromNativeData(
 		return nil
 	}
 
+	setIgnoreChangesField(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
+
 	return model
 }
 
@@ -882,6 +936,7 @@ func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestRe
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
 	}
+	model.IgnoreChanges = types.SetNull(types.StringType)
 
 	// Handle delete controls - only set if they were actually provided or true
 	if nativeModel.IsDeleteEnabled {
@@ -1023,6 +1078,26 @@ func setMapFields(
 		return
 	}
 	model.ResponseBodyJSON = responseBodyJSON
+}
+
+func setIgnoreChangesField(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
+	if len(nativeModel.IgnoreChanges) == 0 {
+		return
+	}
+	value, diags := types.SetValueFrom(
+		context.Background(),
+		types.StringType,
+		nativeModel.IgnoreChanges,
+	)
+	diagnostics.Append(diags...)
+	if diagnostics.HasError() {
+		return
+	}
+	model.IgnoreChanges = value
 }
 
 func (it *HTTPRequestResource) buildFullURL(
