@@ -8,7 +8,7 @@ When a new release is proposed:
 
 1. Create a new branch `bump/x.x.x` (this isn't a long-lived branch!!!);
 2. The Unreleased section on `CHANGELOG.md` gets a version number and date;
-3. Update the `version` constant in the `main.go` file;
+3. Update the `version` constant in the `main.go` file, also on the `Makefile` if applicable;
 4. Open a Pull Request with the bump version changes targeting the `main` branch;
 5. When the Pull Request is merged, a new Git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
 
@@ -22,9 +22,11 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 - added resource-level configuration support for `base_url`, `basic_auth`, and `ignore_tls` attributes in `http_request` resource
 - added ability to use `count` and `for_each` with different APIs by specifying configuration at resource level instead of provider level
 - added validation to ensure at least one base URL is configured (either at provider or resource level)
+- added `ignore_changes` feature to support ignoring specific attributes during updates
 
 ### Changed
 
+- changed the state and plan flows to ignore delete control fields by default instead of destructing the resource when those fields were changed
 - changed provider-level `url` attribute from required to optional (can now be provided at resource level)
 - improved error handling with clear messages when no base URL is configured anywhere
 

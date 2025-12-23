@@ -59,6 +59,52 @@ func BoolAttribute(required bool, description string) schema.BoolAttribute {
 	return attribute
 }
 
+// StringAttributeNoReplace creates an optional/required string attribute that does NOT trigger replacement on change.
+// Use this for fields that only affect behavior during destroy or other non-create operations.
+func StringAttributeNoReplace(required bool, description string) schema.StringAttribute {
+	attribute := schema.StringAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+// MapAttributeNoReplace creates an optional/required map attribute that does NOT trigger replacement on change.
+// Use this for fields that only affect behavior during destroy or other non-create operations.
+func MapAttributeNoReplace(required bool, elementType attr.Type, description string) schema.MapAttribute {
+	attribute := schema.MapAttribute{
+		ElementType:         elementType,
+		Description:         description,
+		MarkdownDescription: description,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+// BoolAttributeNoReplace creates an optional/required bool attribute that does NOT trigger replacement on change.
+// Use this for fields that only affect behavior during destroy or other non-create operations.
+func BoolAttributeNoReplace(required bool, description string) schema.BoolAttribute {
+	attribute := schema.BoolAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
 func ComputedStringAttribute(description string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Computed:            true,

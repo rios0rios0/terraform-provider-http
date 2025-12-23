@@ -711,6 +711,196 @@ func TestHTTPRequestResource(t *testing.T) {
 			},
 		})
 	})
+
+	// Tests for delete fields NOT triggering replacement
+	// Note: These tests verify that changing delete_* fields doesn't cause resource replacement.
+	// However, delete_resolved_path IS a computed field that changes when delete_path changes,
+	// which requires using PlanOnly for subsequent steps to avoid Terraform's "inconsistent result" error.
+
+	t.Run("should NOT replace resource when delete_method changes", func(t *testing.T) {
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			Build()
+
+		// Both steps use the same delete_path, so delete_resolved_path won't change
+		// We disable delete to avoid the 404 error from the mock API during cleanup
+		configStep1 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_method_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(false). // Disabled to avoid cleanup issues
+				WithDeleteMethod("DELETE").
+				WithDeletePath("/posts/1").
+				Build()
+
+		configStep2 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_method_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(false). // Disabled to avoid cleanup issues
+				WithDeleteMethod("POST").   // Changed from DELETE to POST
+				WithDeletePath("/posts/1").
+				Build()
+
+		var originalID string
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: configStep1,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_method_no_replace", "delete_method", "DELETE"),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_method_no_replace"]
+							originalID = rs.Primary.ID
+							return nil
+						},
+					),
+				},
+				{
+					Config: configStep2,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_method_no_replace", "delete_method", "POST"),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_method_no_replace"]
+							if rs.Primary.ID != originalID {
+								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
+							}
+							return nil
+						},
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should NOT replace resource when delete_headers changes", func(t *testing.T) {
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			Build()
+
+		configStep1 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_headers_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(true).
+				WithDeletePath("/posts/1").
+				WithDeleteHeaders(map[string]string{
+					"X-Delete-Reason": "initial",
+				}).
+				Build()
+
+		configStep2 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_headers_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(true).
+				WithDeletePath("/posts/1").
+				WithDeleteHeaders(map[string]string{
+					"X-Delete-Reason": "changed", // Changed value
+					"X-Extra-Header":  "new",     // Added new header
+				}).
+				Build()
+
+		var originalID string
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: configStep1,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Delete-Reason", "initial"),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_headers_no_replace"]
+							originalID = rs.Primary.ID
+							return nil
+						},
+					),
+				},
+				{
+					Config: configStep2,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Delete-Reason", "changed"),
+						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Extra-Header", "new"),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_headers_no_replace"]
+							if rs.Primary.ID != originalID {
+								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
+							}
+							return nil
+						},
+					),
+				},
+			},
+		})
+	})
+
+	t.Run("should NOT replace resource when delete_request_body changes", func(t *testing.T) {
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			Build()
+
+		configStep1 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_body_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(true).
+				WithDeletePath("/posts/1").
+				WithDeleteRequestBody(strconv.Quote(`{"reason": "initial"}`)).
+				Build()
+
+		configStep2 := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_body_no_replace").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(true).
+				WithDeletePath("/posts/1").
+				WithDeleteRequestBody(strconv.Quote(`{"reason": "changed", "extra": "field"}`)).
+				Build()
+
+		var originalID string
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: configStep1,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_body_no_replace", "delete_request_body", `{"reason": "initial"}`),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_body_no_replace"]
+							originalID = rs.Primary.ID
+							return nil
+						},
+					),
+				},
+				{
+					Config: configStep2,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_body_no_replace", "delete_request_body", `{"reason": "changed", "extra": "field"}`),
+						func(s *terraform.State) error {
+							rs := s.RootModule().Resources["http_request.test_delete_body_no_replace"]
+							if rs.Primary.ID != originalID {
+								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
+							}
+							return nil
+						},
+					),
+				},
+			},
+		})
+	})
 }
 
 func TestHTTPRequestResource_ValidateConfig(t *testing.T) {

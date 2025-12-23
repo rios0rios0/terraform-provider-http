@@ -21,7 +21,6 @@ terraform {
   }
 }
 
-# Traditional provider configuration with URL (backward compatible)
 provider "http" {
   url = "https://jsonplaceholder.typicode.com"
   basic_auth = {
@@ -29,48 +28,6 @@ provider "http" {
     password = "***"
   }
   ignore_tls = true
-}
-
-# Alternative: Provider with no URL (resources provide their own URLs)
-# This enables using count/for_each with different APIs
-provider "http" {
-  ignore_tls = true  # Global TLS setting, can be overridden per resource
-}
-
-# Example: Using count with different APIs (main use case)
-variable "apis" {
-  default = [
-    {
-      name     = "jsonplaceholder"
-      base_url = "https://jsonplaceholder.typicode.com"
-      path     = "/posts/1"
-      auth     = false
-    },
-    {
-      name     = "httpbin"
-      base_url = "https://httpbin.org"
-      path     = "/get"
-      auth     = true
-      username = "testuser"
-      password = "testpass"
-    }
-  ]
-}
-
-resource "http_request" "multi_api_calls" {
-  count = length(var.apis)
-  
-  # Resource-level configuration (overrides provider-level)
-  base_url = var.apis[count.index].base_url
-  
-  method = "GET"
-  path   = var.apis[count.index].path
-  
-  # Conditional resource-level authentication
-  basic_auth = var.apis[count.index].auth ? {
-    username = var.apis[count.index].username
-    password = var.apis[count.index].password
-  } : null
 }
 ```
 
