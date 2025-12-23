@@ -74,46 +74,57 @@ func getSupportedIgnoreAttributes() map[string]IgnoreAttributeKind {
 // Note: delete_* fields are NOT included here because they never trigger replacement
 // (they only affect destroy behavior and use NoReplace schema modifiers).
 func getIgnoreAppliers() map[string]ignoreApplier {
+	methodGetter := func(m *HTTPRequestResourceModel) *types.String { return &m.Method }
+	pathGetter := func(m *HTTPRequestResourceModel) *types.String { return &m.Path }
+	baseURLGetter := func(m *HTTPRequestResourceModel) *types.String { return &m.BaseURL }
+	responseBodyIDFilterGetter := func(m *HTTPRequestResourceModel) *types.String { return &m.ResponseBodyIDFilter }
+	ignoreTLSGetter := func(m *HTTPRequestResourceModel) *types.Bool { return &m.IgnoreTLS }
+	isResponseBodyJSONGetter := func(m *HTTPRequestResourceModel) *types.Bool { return &m.IsResponseBodyJSON }
+	headersGetter := func(m *HTTPRequestResourceModel) *types.Map { return &m.Headers }
+	queryParametersGetter := func(m *HTTPRequestResourceModel) *types.Map { return &m.QueryParameters }
+	requestBodyGetter := func(m *HTTPRequestResourceModel) *types.String { return &m.RequestBody }
+	basicAuthGetter := func(m *HTTPRequestResourceModel) *types.Object { return &m.BasicAuth }
+
 	return map[string]ignoreApplier{
 		"method": makeStringApplier(
-			func(m *HTTPRequestResourceModel) *types.String { return &m.Method },
-			func(m *HTTPRequestResourceModel) *types.String { return &m.Method },
+			methodGetter,
+			methodGetter,
 		),
 		"path": makeStringApplier(
-			func(m *HTTPRequestResourceModel) *types.String { return &m.Path },
-			func(m *HTTPRequestResourceModel) *types.String { return &m.Path },
+			pathGetter,
+			pathGetter,
 		),
 		"base_url": makeStringApplier(
-			func(m *HTTPRequestResourceModel) *types.String { return &m.BaseURL },
-			func(m *HTTPRequestResourceModel) *types.String { return &m.BaseURL },
+			baseURLGetter,
+			baseURLGetter,
 		),
 		"response_body_id_filter": makeStringApplier(
-			func(m *HTTPRequestResourceModel) *types.String { return &m.ResponseBodyIDFilter },
-			func(m *HTTPRequestResourceModel) *types.String { return &m.ResponseBodyIDFilter },
+			responseBodyIDFilterGetter,
+			responseBodyIDFilterGetter,
 		),
 		"ignore_tls": makeBoolApplier(
-			func(m *HTTPRequestResourceModel) *types.Bool { return &m.IgnoreTLS },
-			func(m *HTTPRequestResourceModel) *types.Bool { return &m.IgnoreTLS },
+			ignoreTLSGetter,
+			ignoreTLSGetter,
 		),
 		"is_response_body_json": makeBoolApplier(
-			func(m *HTTPRequestResourceModel) *types.Bool { return &m.IsResponseBodyJSON },
-			func(m *HTTPRequestResourceModel) *types.Bool { return &m.IsResponseBodyJSON },
+			isResponseBodyJSONGetter,
+			isResponseBodyJSONGetter,
 		),
 		"headers": makeMapApplier(
-			func(m *HTTPRequestResourceModel) *types.Map { return &m.Headers },
-			func(m *HTTPRequestResourceModel) *types.Map { return &m.Headers },
+			headersGetter,
+			headersGetter,
 		),
 		"query_parameters": makeMapApplier(
-			func(m *HTTPRequestResourceModel) *types.Map { return &m.QueryParameters },
-			func(m *HTTPRequestResourceModel) *types.Map { return &m.QueryParameters },
+			queryParametersGetter,
+			queryParametersGetter,
 		),
 		"request_body": makeBodyApplier(
-			func(m *HTTPRequestResourceModel) *types.String { return &m.RequestBody },
-			func(m *HTTPRequestResourceModel) *types.String { return &m.RequestBody },
+			requestBodyGetter,
+			requestBodyGetter,
 		),
 		"basic_auth": makeObjectApplier(
-			func(m *HTTPRequestResourceModel) *types.Object { return &m.BasicAuth },
-			func(m *HTTPRequestResourceModel) *types.Object { return &m.BasicAuth },
+			basicAuthGetter,
+			basicAuthGetter,
 		),
 	}
 }
