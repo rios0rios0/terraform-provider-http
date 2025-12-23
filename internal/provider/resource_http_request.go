@@ -37,6 +37,7 @@ var (
 	_ resource.Resource                = &HTTPRequestResource{}
 	_ resource.ResourceWithConfigure   = &HTTPRequestResource{}
 	_ resource.ResourceWithImportState = &HTTPRequestResource{}
+	_ resource.ResourceWithModifyPlan  = &HTTPRequestResource{}
 )
 
 const AmountOfPartsInID = 2
@@ -56,6 +57,7 @@ type HTTPRequestResourceModel struct {
 	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
+	IgnoreChanges        types.Set    `tfsdk:"ignore_changes"`
 
 	// resource-level configuration (alternative to provider-level)
 	BaseURL   types.String `tfsdk:"base_url"`
@@ -88,6 +90,7 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+	IgnoreChanges        []string          `json:"ignore_changes,omitempty"`
 
 	// resource-level configuration (alternative to provider-level)
 	BaseURL   string            `json:"base_url,omitempty"`
@@ -113,107 +116,111 @@ func NewHTTPRequestResource() resource.Resource {
 }
 
 func GetHTTPRequestResourceSchema() schema.Schema {
+	attrs := make(map[string]schema.Attribute)
+	addRequestAttributes(attrs)
+	addResourceConfigAttributes(attrs)
+	addDeleteControlAttributes(attrs)
+	addStateAttributes(attrs)
+
 	return schema.Schema{
 		Description: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
 		MarkdownDescription: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
+		Attributes: attrs,
+	}
+}
+
+func addRequestAttributes(attrs map[string]schema.Attribute) {
+	attrs["method"] = helpers.StringAttribute(true,
+		"The HTTP method to be used for the request (e.g., GET, POST, PUT, DELETE).")
+	attrs["path"] = helpers.StringAttribute(true,
+		"The URL path for the HTTP request. This should be a relative path (e.g., /api/v1/resource).")
+	attrs["headers"] = helpers.MapAttribute(false, types.StringType,
+		"A map of HTTP headers to include in the request. Each key-value pair represents a "+
+			"header name and its corresponding value.")
+	attrs["query_parameters"] = helpers.MapAttribute(false, types.StringType,
+		"Optional query parameters to append to the request path")
+	attrs["ignore_changes"] = schema.SetAttribute{
+		Description: "Optional list of attribute paths that should not force replacement when they change. " +
+			"Supports top-level attributes (e.g. \"request_body\"), individual map entries (e.g. \"headers.X-Correlation-Id\"), " +
+			"and JSON paths inside request bodies (e.g. \"request_body.metadata.trace_id\").",
+		MarkdownDescription: "Optional list of attribute paths that should not force replacement when they change. " +
+			"Supports top-level attributes (e.g. `request_body`), individual map entries (e.g. `headers.X-Correlation-Id`), " +
+			"and JSON paths inside request bodies (e.g. `request_body.metadata.trace_id`).",
+		Optional:    true,
+		ElementType: types.StringType,
+	}
+	attrs["request_body"] = helpers.StringAttribute(false,
+		"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.")
+	attrs["is_response_body_json"] = helpers.BoolAttribute(false,
+		"A boolean flag indicating whether the response body is expected to be in JSON format.")
+	attrs["response_body_id_filter"] = helpers.StringAttribute(false,
+		"A JSONPath filter used to extract a specific ID from the JSON response body. "+
+			"This is useful for identifying unique elements within the response.")
+}
+
+func addResourceConfigAttributes(attrs map[string]schema.Attribute) {
+	attrs["base_url"] = helpers.StringAttribute(false,
+		"The base URL for this specific HTTP request. When specified, this overrides the provider-level URL "+
+			"configuration. This allows for different APIs to be used within the same configuration.")
+	attrs["basic_auth"] = schema.SingleNestedAttribute{
+		Description: "Credentials for basic authentication for this specific request. " +
+			"When specified, this overrides the provider-level basic authentication configuration.",
+		MarkdownDescription: "Credentials for basic authentication for this specific request. " +
+			"When specified, this overrides the provider-level basic authentication configuration.",
+		Optional: true,
 		Attributes: map[string]schema.Attribute{
-			// parameters
-			"method": helpers.StringAttribute(true,
-				"The HTTP method to be used for the request (e.g., GET, POST, PUT, DELETE)."),
-			"path": helpers.StringAttribute(
-				true,
-				"The URL path for the HTTP request. This should be a relative path (e.g., /api/v1/resource).",
-			),
-			"headers": helpers.MapAttribute(
-				false,
-				types.StringType,
-				"A map of HTTP headers to include in the request. Each key-value pair represents a "+
-					"header name and its corresponding value.",
-			),
-			"query_parameters": helpers.MapAttribute(false, types.StringType,
-				"Optional query parameters to append to the request path"),
-			"request_body": helpers.StringAttribute(
-				false,
-				"The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.",
-			),
-
-			// resource-level configuration (alternative to provider-level)
-			"base_url": helpers.StringAttribute(
-				false,
-				"The base URL for this specific HTTP request. When specified, this overrides the provider-level URL "+
-					"configuration. This allows for different APIs to be used within the same configuration.",
-			),
-			"basic_auth": schema.SingleNestedAttribute{
-				Description: "Credentials for basic authentication for this specific request. " +
-					"When specified, this overrides the provider-level basic authentication configuration.",
-				MarkdownDescription: "Credentials for basic authentication for this specific request. " +
-					"When specified, this overrides the provider-level basic authentication configuration.",
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"username": schema.StringAttribute{
-						Description:         "The username for basic authentication.",
-						MarkdownDescription: "The username for basic authentication.",
-						Required:            true,
-					},
-					"password": schema.StringAttribute{
-						Description:         "The password for basic authentication.",
-						MarkdownDescription: "The password for basic authentication.",
-						Required:            true,
-						Sensitive:           true,
-					},
-				},
+			"username": schema.StringAttribute{
+				Description:         "The username for basic authentication.",
+				MarkdownDescription: "The username for basic authentication.",
+				Required:            true,
 			},
-			"ignore_tls": helpers.BoolAttribute(
-				false,
-				"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
-					"When specified, this overrides the provider-level ignore_tls configuration.",
-			),
-
-			"is_response_body_json": helpers.BoolAttribute(
-				false,
-				"A boolean flag indicating whether the response body is expected to be in JSON format.",
-			),
-			"response_body_id_filter": helpers.StringAttribute(false,
-				"A JSONPath filter used to extract a specific ID from the JSON response body. "+
-					"This is useful for identifying unique elements within the response."),
-
-			// destroy controls
-			"is_delete_enabled": helpers.BoolAttribute(false,
-				"Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, "+
-					"a DELETE will be sent to the original `path`."),
-			"delete_method": helpers.StringAttribute(false,
-				"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE."),
-			"delete_path": helpers.StringAttribute(false,
-				"Path to call during deletion. Supports inline JSONPath tokens like \"/posts/$.data.id\" "+
-					"evaluated against the `response_body` from create."),
-			"delete_headers": helpers.MapAttribute(false, types.StringType,
-				"Headers to send only during deletion."),
-			"delete_request_body": helpers.StringAttribute(false,
-				"Body to send only during deletion."),
-			"delete_resolved_path": helpers.ComputedStringAttribute(
-				"The `delete_path` with JSONPath tokens resolved from the create response, when possible."),
-
-			// state
-			// TODO: how to document the import of ths ID with examples?
-			"id": helpers.ComputedStringAttribute(
-				"A unique identifier for the resource. Format: `<RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>`. " +
-					"This is generated by encoding the entire model (excluding the ID itself) in Base64 format.",
-			),
-			"response_code": helpers.ComputedInt32Attribute(
-				"The HTTP status code returned by the server in response to the request " +
-					"(e.g., 200 for success, 404 for not found)."),
-			"response_body": helpers.ComputedStringAttribute(
-				"The raw body content returned by the server in response to the request."),
-			"response_body_id": helpers.ComputedStringAttribute(
-				"The extracted ID from the JSON response body, based on the provided " +
-					"`response_body_id_filter`. This is only populated if `is_response_body_json` is true."),
-			"response_body_json": helpers.ComputedMapAttribute(types.StringType,
-				"The response body parsed as a Terraform map object. Nested items can be accessed "+
-					"using dot notation (e.g., \"response_body_json[\"nested.item.value\"]\")."),
+			"password": schema.StringAttribute{
+				Description:         "The password for basic authentication.",
+				MarkdownDescription: "The password for basic authentication.",
+				Required:            true,
+				Sensitive:           true,
+			},
 		},
 	}
+	attrs["ignore_tls"] = helpers.BoolAttribute(false,
+		"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
+			"When specified, this overrides the provider-level ignore_tls configuration.")
+}
+
+func addDeleteControlAttributes(attrs map[string]schema.Attribute) {
+	attrs["is_delete_enabled"] = helpers.BoolAttributeNoReplace(false,
+		"Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, "+
+			"a DELETE will be sent to the original `path`.")
+	attrs["delete_method"] = helpers.StringAttributeNoReplace(false,
+		"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE.")
+	attrs["delete_path"] = helpers.StringAttributeNoReplace(false,
+		"Path to call during deletion. Supports inline JSONPath tokens like \"/posts/$.data.id\" "+
+			"evaluated against the `response_body` from create.")
+	attrs["delete_headers"] = helpers.MapAttributeNoReplace(false, types.StringType,
+		"Headers to send only during deletion.")
+	attrs["delete_request_body"] = helpers.StringAttributeNoReplace(false,
+		"Body to send only during deletion.")
+	attrs["delete_resolved_path"] = helpers.ComputedStringAttribute(
+		"The `delete_path` with JSONPath tokens resolved from the create response, when possible.")
+}
+
+func addStateAttributes(attrs map[string]schema.Attribute) {
+	attrs["id"] = helpers.ComputedStringAttribute(
+		"A unique identifier for the resource. Format: `<RANDOM UUID>/<PARAMETERS ENCODED IN BASE64>`. " +
+			"This is generated by encoding the entire model (excluding the ID itself) in Base64 format.")
+	attrs["response_code"] = helpers.ComputedInt32Attribute(
+		"The HTTP status code returned by the server in response to the request " +
+			"(e.g., 200 for success, 404 for not found).")
+	attrs["response_body"] = helpers.ComputedStringAttribute(
+		"The raw body content returned by the server in response to the request.")
+	attrs["response_body_id"] = helpers.ComputedStringAttribute(
+		"The extracted ID from the JSON response body, based on the provided " +
+			"`response_body_id_filter`. This is only populated if `is_response_body_json` is true.")
+	attrs["response_body_json"] = helpers.ComputedMapAttribute(types.StringType,
+		"The response body parsed as a Terraform map object. Nested items can be accessed "+
+			"using dot notation (e.g., \"response_body_json[\"nested.item.value\"]\").")
 }
 
 func (it *HTTPRequestResource) Metadata(
@@ -399,6 +406,42 @@ func (it *HTTPRequestResource) Update(
 		Plan:         req.Plan,
 		ProviderMeta: req.ProviderMeta,
 	}, (*resource.CreateResponse)(resp))
+}
+
+func (it *HTTPRequestResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() {
+		return
+	}
+	if req.State.Raw.IsNull() || !req.State.Raw.IsKnown() {
+		return
+	}
+
+	var planModel HTTPRequestResourceModel
+	var stateModel HTTPRequestResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planModel)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &stateModel)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	entries := parseIgnoreEntries(ctx, planModel.IgnoreChanges, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || len(entries) == 0 {
+		return
+	}
+
+	if !applyIgnoreEntries(ctx, entries, &planModel, &stateModel, &resp.Diagnostics) {
+		return
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
 }
 
 func isBoolTrue(v types.Bool) bool {
@@ -872,6 +915,11 @@ func buildModelFromNativeData(
 		return nil
 	}
 
+	setIgnoreChangesField(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
+
 	return model
 }
 
@@ -882,6 +930,7 @@ func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestRe
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
 	}
+	model.IgnoreChanges = types.SetNull(types.StringType)
 
 	// Handle delete controls - only set if they were actually provided or true
 	if nativeModel.IsDeleteEnabled {
@@ -1023,6 +1072,26 @@ func setMapFields(
 		return
 	}
 	model.ResponseBodyJSON = responseBodyJSON
+}
+
+func setIgnoreChangesField(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
+	if len(nativeModel.IgnoreChanges) == 0 {
+		return
+	}
+	value, diags := types.SetValueFrom(
+		context.Background(),
+		types.StringType,
+		nativeModel.IgnoreChanges,
+	)
+	diagnostics.Append(diags...)
+	if diagnostics.HasError() {
+		return
+	}
+	model.IgnoreChanges = value
 }
 
 func (it *HTTPRequestResource) buildFullURL(
