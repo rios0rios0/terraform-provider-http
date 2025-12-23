@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   default:
-    uses: 'rios0rios0/pipelines/.github/workflows/go-binary.yaml@main'
+    uses: 'rios0rios0/pipelines/.github/workflows/go-binary.yaml@feat/multiple-tags'
     with:
       binary_name: 'terraform-provider-http'
+      tag_prefixes: '["", "v"]'
