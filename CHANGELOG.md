@@ -17,17 +17,19 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [2.3.0] - 2025-12-23
+
 ### Added
 
-- added resource-level configuration support for `base_url`, `basic_auth`, and `ignore_tls` attributes in `http_request` resource
-- added ability to use `count` and `for_each` with different APIs by specifying configuration at resource level instead of provider level
-- added validation to ensure at least one base URL is configured (either at provider or resource level)
 - added `ignore_changes` feature to support ignoring specific attributes during updates
+- added ability to use `count` and `for_each` with different APIs by specifying configuration at resource level instead of provider level
+- added resource-level configuration support for `base_url`, `basic_auth`, and `ignore_tls` attributes in `http_request` resource
+- added validation to ensure at least one base URL is configured (either at provider or resource level)
 
 ### Changed
 
-- changed the state and plan flows to ignore delete control fields by default instead of destructing the resource when those fields were changed
 - changed provider-level `url` attribute from required to optional (can now be provided at resource level)
+- changed the state and plan flows to ignore delete control fields by default instead of destructing the resource when those fields were changed
 - improved error handling with clear messages when no base URL is configured anywhere
 
 ## [2.2.0] - 2025-08-22
