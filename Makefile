@@ -1,7 +1,7 @@
 SCRIPTS_DIR := $(HOME)/Development/github.com/rios0rios0/pipelines
 REPO_URL    := https://github.com/rios0rios0/pipelines.git
 
-.PHONY: all scripts lint lint-fix horusec test build install uninstall docs
+.PHONY: all scripts lint lint-fix horusec semgrep gitleaks test build install uninstall docs
 all: lint horusec semgrep gitleaks test
 
 scripts:
