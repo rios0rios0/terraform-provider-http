@@ -6,6 +6,12 @@
         <img src="https://img.shields.io/github/license/rios0rios0/terraform-provider-http.svg?style=for-the-badge&logo=github" alt="License"/></a>
     <a href="https://github.com/rios0rios0/terraform-provider-http/actions/workflows/default.yaml">
         <img src="https://img.shields.io/github/actions/workflow/status/rios0rios0/terraform-provider-http/default.yaml?branch=main&style=for-the-badge&logo=github" alt="Build Status"/></a>
+    <a href="https://sonarcloud.io/summary/overall?id=rios0rios0_terraform-provider-http">
+        <img src="https://img.shields.io/sonar/coverage/rios0rios0_terraform-provider-http?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqubecloud" alt="Coverage"/></a>
+    <a href="https://sonarcloud.io/summary/overall?id=rios0rios0_terraform-provider-http">
+        <img src="https://img.shields.io/sonar/quality_gate/rios0rios0_terraform-provider-http?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqubecloud" alt="Quality Gate"/></a>
+    <a href="https://www.bestpractices.dev/projects/12034">
+        <img src="https://img.shields.io/cii/level/12034?style=for-the-badge&logo=opensourceinitiative" alt="OpenSSF Best Practices"/></a>
 </p>
 
 A Terraform provider that facilitates the execution of HTTP requests and enables the storage of responses within the Terraform state. The primary advantage is the ability to utilize stored responses in subsequent requests.
