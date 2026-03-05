@@ -169,7 +169,23 @@ resource "http_request" "with_query_params" {
   response_body_id_filter = "$[0].id"
 }
 
-# 9) Ignore volatile inputs (headers or JSON fragments)
+# 9) Tolerate non-2xx status codes (e.g. 404)
+# Use `tolerated_status_codes` to allow specific non-2xx responses without failing.
+# This is useful when the remote resource might not exist yet.
+resource "http_request" "maybe_exists" {
+  method  = "GET"
+  path    = "/api/v1/widgets/${var.widget_id}"
+  headers = {
+    "Accept" = "application/json"
+  }
+
+  tolerated_status_codes = [404]
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 10) Ignore volatile inputs (headers or JSON fragments)
 # Use `ignore_changes` to prevent resource replacement when specific fields change.
 # This is useful for fields that contain dynamic values like UUIDs, timestamps, etc.
 # Supports:
@@ -227,6 +243,7 @@ resource "http_request" "idempotent_post" {
 - `query_parameters` (Map of String) Optional query parameters to append to the request path
 - `request_body` (String) The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.
 - `response_body_id_filter` (String) A JSONPath filter used to extract a specific ID from the JSON response body. This is useful for identifying unique elements within the response.
+- `tolerated_status_codes` (Set of Number) HTTP status codes that should be treated as successful in addition to the default 2xx range. For example, setting this to `[404]` allows the resource to succeed when the server returns a `404 Not Found`.
 
 ### Read-Only
 

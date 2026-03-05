@@ -13,6 +13,7 @@ import (
 	"net/url"
 	gopath "path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -57,6 +58,7 @@ type HTTPRequestResourceModel struct {
 	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
 	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
 	QueryParameters      types.Map    `tfsdk:"query_parameters"`
+	ToleratedStatusCodes types.Set    `tfsdk:"tolerated_status_codes"`
 	IgnoreChanges        types.Set    `tfsdk:"ignore_changes"`
 
 	// resource-level configuration (alternative to provider-level)
@@ -90,6 +92,7 @@ type HTTPRequestResourceModelNative struct {
 	IsResponseBodyJSON   bool              `json:"is_response_body_json,omitempty"`
 	ResponseBodyIDFilter string            `json:"response_body_id_filter,omitempty"`
 	QueryParameters      map[string]string `json:"query_parameters,omitempty"`
+	ToleratedStatusCodes []int32           `json:"tolerated_status_codes,omitempty"`
 	IgnoreChanges        []string          `json:"ignore_changes,omitempty"`
 
 	// resource-level configuration (alternative to provider-level)
@@ -141,6 +144,14 @@ func addRequestAttributes(attrs map[string]schema.Attribute) {
 			"header name and its corresponding value.")
 	attrs["query_parameters"] = helpers.MapAttribute(false, types.StringType,
 		"Optional query parameters to append to the request path")
+	attrs["tolerated_status_codes"] = schema.SetAttribute{
+		Description: "HTTP status codes that should be treated as successful in addition to the default 2xx range. " +
+			"For example, setting this to [404] allows the resource to succeed when the server returns a 404 Not Found.",
+		MarkdownDescription: "HTTP status codes that should be treated as successful in addition to the default 2xx range. " +
+			"For example, setting this to `[404]` allows the resource to succeed when the server returns a `404 Not Found`.",
+		Optional:    true,
+		ElementType: types.Int32Type,
+	}
 	attrs["ignore_changes"] = schema.SetAttribute{
 		Description: "Optional list of attribute paths that should not force replacement when they change. " +
 			"Supports top-level attributes (e.g. \"request_body\"), individual map entries (e.g. \"headers.X-Correlation-Id\"), " +
@@ -263,6 +274,42 @@ func (it *HTTPRequestResource) ValidateConfig(
 				"Refer to the documentation for more information (https://github.com/ohler55/ojg).",
 		)
 	}
+
+	validateToleratedStatusCodes(ctx, req, resp)
+}
+
+func validateToleratedStatusCodes(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var codes types.Set
+	resp.Diagnostics.Append(
+		req.Config.GetAttribute(ctx, path.Root("tolerated_status_codes"), &codes)...,
+	)
+	if resp.Diagnostics.HasError() || codes.IsNull() || codes.IsUnknown() {
+		return
+	}
+
+	var values []int32
+	resp.Diagnostics.Append(codes.ElementsAs(ctx, &values, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	const minHTTPStatus, maxHTTPStatus = 100, 599
+	for _, code := range values {
+		if code < minHTTPStatus || code > maxHTTPStatus {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("tolerated_status_codes"),
+				"Invalid HTTP status code in tolerated_status_codes",
+				fmt.Sprintf(
+					"Status code %d is outside the valid HTTP range (%d-%d).",
+					code, minHTTPStatus, maxHTTPStatus,
+				),
+			)
+		}
+	}
 }
 
 func (it *HTTPRequestResource) Configure(
@@ -340,7 +387,10 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	if !helpers.IsResponseSuccessful(response) {
+	tolerated := isStatusCodeTolerated(
+		ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics,
+	)
+	if !helpers.IsResponseSuccessful(response) && !tolerated {
 		resp.Diagnostics.AddError(
 			"Error performing HTTP request. Not expected status code...",
 			fmt.Sprintf(
@@ -352,30 +402,7 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
-	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
-	model.ResponseBody = types.StringValue(string(responseBody))
-	updateResponseBody(&model, &resp.Diagnostics)
-	updateResponseBodyID(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
-	updateResponseBodyJSON(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
-
-	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
-		resolved, ok := resolveDeletePathTokens(
-			model.DeletePath.ValueString(), model.ResponseBody.ValueString(), &resp.Diagnostics,
-		)
-		if ok {
-			model.DeleteResolvedPath = types.StringValue(resolved)
-		} else {
-			model.DeleteResolvedPath = types.StringNull()
-		}
-	} else {
-		model.DeleteResolvedPath = types.StringNull()
-	}
-
-	// the ID should be the last attribute to be set
-	if len(model.ID.ValueString()) == 0 {
-		model.ID = types.StringValue(uuid.NewString())
-	}
+	populateResponseState(ctx, &model, response, responseBody, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -446,6 +473,58 @@ func (it *HTTPRequestResource) ModifyPlan(
 	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
+}
+
+func isStatusCodeTolerated(
+	ctx context.Context,
+	toleratedCodes types.Set,
+	statusCode int,
+	diagnostics *diag.Diagnostics,
+) bool {
+	if toleratedCodes.IsNull() || toleratedCodes.IsUnknown() {
+		return false
+	}
+
+	var codes []int32
+	diagnostics.Append(toleratedCodes.ElementsAs(ctx, &codes, false)...)
+	if diagnostics.HasError() {
+		return false
+	}
+
+	//nolint:gosec // G115: safe - HTTP status codes are 3-digit values (100-599), well within int32 range
+	return slices.Contains(codes, int32(statusCode))
+}
+
+func populateResponseState(
+	_ context.Context,
+	model *HTTPRequestResourceModel,
+	response *http.Response,
+	responseBody []byte,
+	diagnostics *diag.Diagnostics,
+) {
+	//nolint:gosec // G115: safe - HTTP status codes are 3-digit values (100-599), well within int32 range
+	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
+	model.ResponseBody = types.StringValue(string(responseBody))
+	updateResponseBody(model, diagnostics)
+	updateResponseBodyID(model, []byte(model.ResponseBody.ValueString()), diagnostics)
+	updateResponseBodyJSON(model, []byte(model.ResponseBody.ValueString()), diagnostics)
+
+	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
+		resolved, ok := resolveDeletePathTokens(
+			model.DeletePath.ValueString(), model.ResponseBody.ValueString(), diagnostics,
+		)
+		if ok {
+			model.DeleteResolvedPath = types.StringValue(resolved)
+		} else {
+			model.DeleteResolvedPath = types.StringNull()
+		}
+	} else {
+		model.DeleteResolvedPath = types.StringNull()
+	}
+
+	if len(model.ID.ValueString()) == 0 {
+		model.ID = types.StringValue(uuid.NewString())
+	}
 }
 
 func isBoolTrue(v types.Bool) bool {
@@ -579,8 +658,11 @@ func (it *HTTPRequestResource) Delete(
 		"body":   string(responseBody),
 	})
 
-	// Treat any non-2xx as error
-	if !helpers.IsResponseSuccessful(response) {
+	// Treat any non-2xx as error (unless the status code is tolerated)
+	tolerated := isStatusCodeTolerated(
+		ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics,
+	)
+	if !helpers.IsResponseSuccessful(response) && !tolerated {
 		resp.Diagnostics.AddError(
 			"DELETE request failed with unexpected status code",
 			fmt.Sprintf("Response code: %s. Body: %s", response.Status, string(responseBody)),
@@ -920,6 +1002,11 @@ func buildModelFromNativeData(
 		return nil
 	}
 
+	setToleratedStatusCodesField(model, nativeModel, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
+
 	setIgnoreChangesField(model, nativeModel, diagnostics)
 	if diagnostics.HasError() {
 		return nil
@@ -935,6 +1022,7 @@ func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestRe
 		IsResponseBodyJSON: types.BoolValue(nativeModel.IsResponseBodyJSON),
 		ResponseCode:       types.Int32Value(nativeModel.ResponseCode),
 	}
+	model.ToleratedStatusCodes = types.SetNull(types.Int32Type)
 	model.IgnoreChanges = types.SetNull(types.StringType)
 
 	// Handle delete controls - only set if they were actually provided or true
@@ -1077,6 +1165,26 @@ func setMapFields(
 		return
 	}
 	model.ResponseBodyJSON = responseBodyJSON
+}
+
+func setToleratedStatusCodesField(
+	model *HTTPRequestResourceModel,
+	nativeModel *HTTPRequestResourceModelNative,
+	diagnostics *diag.Diagnostics,
+) {
+	if len(nativeModel.ToleratedStatusCodes) == 0 {
+		return
+	}
+	value, diags := types.SetValueFrom(
+		context.Background(),
+		types.Int32Type,
+		nativeModel.ToleratedStatusCodes,
+	)
+	diagnostics.Append(diags...)
+	if diagnostics.HasError() {
+		return
+	}
+	model.ToleratedStatusCodes = value
 }
 
 func setIgnoreChangesField(
