@@ -17,7 +17,6 @@ lint: scripts
 lint-fix: scripts
 	$(SCRIPTS_DIR)/global/scripts/languages/golang/golangci-lint/run.sh --fix .
 
-
 semgrep: scripts
 	$(SCRIPTS_DIR)/global/scripts/tools/semgrep/run.sh "golang"
 

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	gopath "path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -350,7 +351,10 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	if !helpers.IsResponseSuccessful(response) && !isStatusCodeTolerated(ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics) {
+	tolerated := isStatusCodeTolerated(
+		ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics,
+	)
+	if !helpers.IsResponseSuccessful(response) && !tolerated {
 		resp.Diagnostics.AddError(
 			"Error performing HTTP request. Not expected status code...",
 			fmt.Sprintf(
@@ -362,30 +366,7 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
-	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
-	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
-	model.ResponseBody = types.StringValue(string(responseBody))
-	updateResponseBody(&model, &resp.Diagnostics)
-	updateResponseBodyID(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
-	updateResponseBodyJSON(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
-
-	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
-		resolved, ok := resolveDeletePathTokens(
-			model.DeletePath.ValueString(), model.ResponseBody.ValueString(), &resp.Diagnostics,
-		)
-		if ok {
-			model.DeleteResolvedPath = types.StringValue(resolved)
-		} else {
-			model.DeleteResolvedPath = types.StringNull()
-		}
-	} else {
-		model.DeleteResolvedPath = types.StringNull()
-	}
-
-	// the ID should be the last attribute to be set
-	if len(model.ID.ValueString()) == 0 {
-		model.ID = types.StringValue(uuid.NewString())
-	}
+	populateResponseState(ctx, &model, response, responseBody, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -474,13 +455,40 @@ func isStatusCodeTolerated(
 		return false
 	}
 
-	for _, code := range codes {
-		//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
-		if int32(statusCode) == code {
-			return true
+	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
+	return slices.Contains(codes, int32(statusCode))
+}
+
+func populateResponseState(
+	ctx context.Context,
+	model *HTTPRequestResourceModel,
+	response *http.Response,
+	responseBody []byte,
+	diagnostics *diag.Diagnostics,
+) {
+	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
+	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
+	model.ResponseBody = types.StringValue(string(responseBody))
+	updateResponseBody(model, diagnostics)
+	updateResponseBodyID(model, []byte(model.ResponseBody.ValueString()), diagnostics)
+	updateResponseBodyJSON(model, []byte(model.ResponseBody.ValueString()), diagnostics)
+
+	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
+		resolved, ok := resolveDeletePathTokens(
+			model.DeletePath.ValueString(), model.ResponseBody.ValueString(), diagnostics,
+		)
+		if ok {
+			model.DeleteResolvedPath = types.StringValue(resolved)
+		} else {
+			model.DeleteResolvedPath = types.StringNull()
 		}
+	} else {
+		model.DeleteResolvedPath = types.StringNull()
 	}
-	return false
+
+	if len(model.ID.ValueString()) == 0 {
+		model.ID = types.StringValue(uuid.NewString())
+	}
 }
 
 func isBoolTrue(v types.Bool) bool {
@@ -615,7 +623,10 @@ func (it *HTTPRequestResource) Delete(
 	})
 
 	// Treat any non-2xx as error (unless the status code is tolerated)
-	if !helpers.IsResponseSuccessful(response) && !isStatusCodeTolerated(ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics) {
+	tolerated := isStatusCodeTolerated(
+		ctx, model.ToleratedStatusCodes, response.StatusCode, &resp.Diagnostics,
+	)
+	if !helpers.IsResponseSuccessful(response) && !tolerated {
 		resp.Diagnostics.AddError(
 			"DELETE request failed with unexpected status code",
 			fmt.Sprintf("Response code: %s. Body: %s", response.Status, string(responseBody)),
