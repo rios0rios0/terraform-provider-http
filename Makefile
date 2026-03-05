@@ -1,8 +1,8 @@
 SCRIPTS_DIR := $(HOME)/Development/github.com/rios0rios0/pipelines
 REPO_URL    := https://github.com/rios0rios0/pipelines.git
 
-.PHONY: all scripts lint lint-fix horusec semgrep gitleaks test build install uninstall docs
-all: lint horusec semgrep gitleaks test
+.PHONY: all scripts lint lint-fix semgrep gitleaks test build install uninstall docs
+all: lint semgrep gitleaks test
 
 scripts:
 	if [ ! -d "$(SCRIPTS_DIR)" ]; then \
@@ -12,22 +12,20 @@ scripts:
 	fi
 
 lint: scripts
-	$(SCRIPTS_DIR)/global/scripts/golangci-lint/run.sh .
+	$(SCRIPTS_DIR)/global/scripts/languages/golang/golangci-lint/run.sh .
 
 lint-fix: scripts
-	$(SCRIPTS_DIR)/global/scripts/golangci-lint/run.sh --fix .
+	$(SCRIPTS_DIR)/global/scripts/languages/golang/golangci-lint/run.sh --fix .
 
-horusec: scripts
-	$(SCRIPTS_DIR)/global/scripts/horusec/run.sh .
 
 semgrep: scripts
-	$(SCRIPTS_DIR)/global/scripts/semgrep/run.sh "golang"
+	$(SCRIPTS_DIR)/global/scripts/tools/semgrep/run.sh "golang"
 
 gitleaks: scripts
-	$(SCRIPTS_DIR)/global/scripts/gitleaks/run.sh .
+	$(SCRIPTS_DIR)/global/scripts/tools/gitleaks/run.sh .
 
 test: scripts
-	$(SCRIPTS_DIR)/global/scripts/golang/test/run.sh .
+	$(SCRIPTS_DIR)/global/scripts/languages/golang/test/run.sh .
 
 
 VERSION = 2.3.0

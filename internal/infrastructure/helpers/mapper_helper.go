@@ -2,11 +2,11 @@ package helpers
 
 import "fmt"
 
-func ConvertToStringMap(input map[string]interface{}) map[string]string {
+func ConvertToStringMap(input map[string]any) map[string]string {
 	stringMap := make(map[string]string)
 	for key, value := range input {
 		switch v := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			nestedMap := ConvertToStringMap(v)
 			for nestedKey, nestedValue := range nestedMap {
 				stringMap[fmt.Sprintf("%s.%s", key, nestedKey)] = nestedValue
