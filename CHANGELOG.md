@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added `tolerated_status_codes` attribute to `http_request` resource, allowing specific non-2xx HTTP status codes (e.g. 404) to be treated as successful instead of causing errors
+
 ### Fixed
 
 - fixed golangci-lint findings: replaced `interface{}` with `any` (modernize), added nolint directives for expected SSRF and password field patterns (gosec), and wrapped long lines (golines)

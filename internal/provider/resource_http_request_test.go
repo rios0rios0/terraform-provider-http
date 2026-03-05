@@ -901,6 +901,40 @@ func TestHTTPRequestResource(t *testing.T) {
 			},
 		})
 	})
+
+	t.Run("should apply without error when server returns 404 and 404 is tolerated", func(t *testing.T) {
+		// given
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			Build()
+
+		config := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_tolerated_404").
+				WithMethod("GET").
+				WithPath("/posts/0"). // this endpoint returns 404
+				WithToleratedStatusCodes([]int{404}).
+				Build()
+
+		// when
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: config,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						// then
+						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "method", "GET"),
+						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "path", "/posts/0"),
+						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "response_code", "404"),
+						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "id"),
+						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "response_body"),
+					),
+				},
+			},
+		})
+	})
 }
 
 func TestHTTPRequestResource_ValidateConfig(t *testing.T) {

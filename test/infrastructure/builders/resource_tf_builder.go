@@ -115,6 +115,18 @@ func (b *ResourceTFBuilder) WithDeleteRequestBody(deleteRequestBody string) *Res
 	return b
 }
 
+func (b *ResourceTFBuilder) WithToleratedStatusCodes(codes []int) *ResourceTFBuilder {
+	if len(codes) == 0 {
+		return b
+	}
+	b.config += "tolerated_status_codes = [\n"
+	for _, code := range codes {
+		b.config += fmt.Sprintf("  %d,\n", code)
+	}
+	b.config += "]\n"
+	return b
+}
+
 func (b *ResourceTFBuilder) WithIgnoreChanges(entries []string) *ResourceTFBuilder {
 	if len(entries) == 0 {
 		return b
