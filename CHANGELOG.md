@@ -17,6 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed golangci-lint findings: replaced `interface{}` with `any` (modernize), added nolint directives for expected SSRF and password field patterns (gosec), and wrapped long lines (golines)
+- fixed CodeQL SARIF upload by adding `security-events: write` permission to CI workflow
+- fixed Makefile script paths to match the updated pipelines repository structure
+
 ### Changed
 
 - changed the Go version to `1.26.0` and updated all module dependencies

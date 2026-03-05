@@ -320,6 +320,7 @@ func (it *HTTPRequestResource) Create(
 	}
 
 	client := it.getHTTPClient(ctx, model)
+	//nolint:gosec // G704: SSRF is expected behavior for a Terraform HTTP provider - URLs are user-configured
 	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
@@ -359,7 +360,10 @@ func (it *HTTPRequestResource) Create(
 	updateResponseBodyJSON(&model, []byte(model.ResponseBody.ValueString()), &resp.Diagnostics)
 
 	if !model.DeletePath.IsNull() && model.DeletePath.ValueString() != "" {
-		if resolved, ok := resolveDeletePathTokens(model.DeletePath.ValueString(), model.ResponseBody.ValueString(), &resp.Diagnostics); ok {
+		resolved, ok := resolveDeletePathTokens(
+			model.DeletePath.ValueString(), model.ResponseBody.ValueString(), &resp.Diagnostics,
+		)
+		if ok {
 			model.DeleteResolvedPath = types.StringValue(resolved)
 		} else {
 			model.DeleteResolvedPath = types.StringNull()
@@ -553,6 +557,7 @@ func (it *HTTPRequestResource) Delete(
 	}
 
 	client := it.getHTTPClient(ctx, model)
+	//nolint:gosec // G704: SSRF is expected behavior for a Terraform HTTP provider - URLs are user-configured
 	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing DELETE HTTP request", err.Error())
@@ -569,7 +574,7 @@ func (it *HTTPRequestResource) Delete(
 		resp.Diagnostics.AddError("Error reading DELETE response", err.Error())
 		return
 	}
-	tflog.Debug(ctx, "DELETE response details", map[string]interface{}{
+	tflog.Debug(ctx, "DELETE response details", map[string]any{
 		"status": response.StatusCode,
 		"body":   string(responseBody),
 	})
@@ -763,8 +768,8 @@ func updateResponseBodyID(
 func unmarshalJSON(
 	responseBody []byte,
 	diagnostics *diag.Diagnostics,
-) (map[string]interface{}, error) {
-	var jsonResponse map[string]interface{}
+) (map[string]any, error) {
+	var jsonResponse map[string]any
 	if err := json.Unmarshal(responseBody, &jsonResponse); err != nil {
 		diagnostics.AddWarning(
 			"It wasn't possible to unmarshall response body to a JSON map reference...",
@@ -797,7 +802,7 @@ func updateResponseBodyJSON(
 	diagnostics.Append(diags...)
 
 	if model.IsResponseBodyJSON.ValueBool() {
-		var result map[string]interface{}
+		var result map[string]any
 		err := json.Unmarshal(responseBody, &result)
 		if err != nil {
 			diagnostics.AddError(

@@ -14,6 +14,7 @@ on:
 permissions:
   checks: 'write' # code_check-style_golangci_lint
   contents: 'write' # delivery-release
+  security-events: 'write' # security-sast_codeql (SARIF upload)
 
 jobs:
   default:

@@ -467,15 +467,15 @@ func applyIgnoreForBody(
 	return false
 }
 
-func decodeJSONBody(raw string) (map[string]interface{}, error) {
+func decodeJSONBody(raw string) (map[string]any, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
 	if strings.EqualFold(raw, "null") {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal([]byte(raw), &result); err != nil {
 		return nil, err
 	}
@@ -483,8 +483,8 @@ func decodeJSONBody(raw string) (map[string]interface{}, error) {
 }
 
 func syncJSONPath(
-	target map[string]interface{},
-	source map[string]interface{},
+	target map[string]any,
+	source map[string]any,
 	path []string,
 ) bool {
 	if len(path) == 0 {
@@ -500,7 +500,7 @@ func syncJSONPath(
 	return syncJSONNested(target, source, key, path[1:])
 }
 
-func syncJSONLeaf(target, source map[string]interface{}, key string) bool {
+func syncJSONLeaf(target, source map[string]any, key string) bool {
 	sourceVal, sourceExists := source[key]
 	targetVal, targetExists := target[key]
 
@@ -520,7 +520,7 @@ func syncJSONLeaf(target, source map[string]interface{}, key string) bool {
 }
 
 func syncJSONNested(
-	target, source map[string]interface{},
+	target, source map[string]any,
 	key string,
 	remainingPath []string,
 ) bool {
@@ -535,7 +535,7 @@ func syncJSONNested(
 		return false
 	}
 
-	sourceMap, isSourceMap := sourceChild.(map[string]interface{})
+	sourceMap, isSourceMap := sourceChild.(map[string]any)
 	if !isSourceMap {
 		if !targetExists || !reflect.DeepEqual(targetChild, sourceChild) {
 			target[key] = cloneJSONValue(sourceChild)
@@ -553,14 +553,14 @@ func syncJSONNested(
 }
 
 func getOrCreateTargetMap(
-	target map[string]interface{},
-	targetChild interface{},
+	target map[string]any,
+	targetChild any,
 	targetExists bool,
-	sourceMap map[string]interface{},
+	sourceMap map[string]any,
 	key string,
-) map[string]interface{} {
+) map[string]any {
 	if targetExists {
-		if existing, isMap := targetChild.(map[string]interface{}); isMap {
+		if existing, isMap := targetChild.(map[string]any); isMap {
 			return existing
 		}
 		// Target is not a map, replace with cloned source
@@ -570,17 +570,17 @@ func getOrCreateTargetMap(
 	}
 
 	// Create new map
-	newMap := make(map[string]interface{})
+	newMap := make(map[string]any)
 	target[key] = newMap
 	return newMap
 }
 
-func cloneJSONValue(value interface{}) interface{} {
+func cloneJSONValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return cloneJSONMap(typed)
-	case []interface{}:
-		newSlice := make([]interface{}, len(typed))
+	case []any:
+		newSlice := make([]any, len(typed))
 		for i, v := range typed {
 			newSlice[i] = cloneJSONValue(v)
 		}
@@ -590,11 +590,11 @@ func cloneJSONValue(value interface{}) interface{} {
 	}
 }
 
-func cloneJSONMap(source map[string]interface{}) map[string]interface{} {
+func cloneJSONMap(source map[string]any) map[string]any {
 	if source == nil {
 		return nil
 	}
-	target := make(map[string]interface{}, len(source))
+	target := make(map[string]any, len(source))
 	for k, v := range source {
 		target[k] = cloneJSONValue(v)
 	}
