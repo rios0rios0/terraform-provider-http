@@ -274,6 +274,42 @@ func (it *HTTPRequestResource) ValidateConfig(
 				"Refer to the documentation for more information (https://github.com/ohler55/ojg).",
 		)
 	}
+
+	validateToleratedStatusCodes(ctx, req, resp)
+}
+
+func validateToleratedStatusCodes(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var codes types.Set
+	resp.Diagnostics.Append(
+		req.Config.GetAttribute(ctx, path.Root("tolerated_status_codes"), &codes)...,
+	)
+	if resp.Diagnostics.HasError() || codes.IsNull() || codes.IsUnknown() {
+		return
+	}
+
+	var values []int32
+	resp.Diagnostics.Append(codes.ElementsAs(ctx, &values, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	const minHTTPStatus, maxHTTPStatus = 100, 599
+	for _, code := range values {
+		if code < minHTTPStatus || code > maxHTTPStatus {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("tolerated_status_codes"),
+				"Invalid HTTP status code in tolerated_status_codes",
+				fmt.Sprintf(
+					"Status code %d is outside the valid HTTP range (%d-%d).",
+					code, minHTTPStatus, maxHTTPStatus,
+				),
+			)
+		}
+	}
 }
 
 func (it *HTTPRequestResource) Configure(
@@ -455,7 +491,7 @@ func isStatusCodeTolerated(
 		return false
 	}
 
-	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
+	//nolint:gosec // G115: safe - HTTP status codes are 3-digit values (100-599), well within int32 range
 	return slices.Contains(codes, int32(statusCode))
 }
 
@@ -466,7 +502,7 @@ func populateResponseState(
 	responseBody []byte,
 	diagnostics *diag.Diagnostics,
 ) {
-	//nolint:gosec // it's not possible integer overflow conversion int -> int32 in the default GoLang package (net/http)
+	//nolint:gosec // G115: safe - HTTP status codes are 3-digit values (100-599), well within int32 range
 	model.ResponseCode = types.Int32Value(int32(response.StatusCode))
 	model.ResponseBody = types.StringValue(string(responseBody))
 	updateResponseBody(model, diagnostics)

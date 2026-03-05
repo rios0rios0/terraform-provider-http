@@ -928,6 +928,7 @@ func TestHTTPRequestResource(t *testing.T) {
 						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "method", "GET"),
 						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "path", "/posts/0"),
 						resource.TestCheckResourceAttr("http_request.test_tolerated_404", "response_code", "404"),
+						resource.TestCheckTypeSetElemAttr("http_request.test_tolerated_404", "tolerated_status_codes.*", "404"),
 						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "id"),
 						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "response_body"),
 					),
