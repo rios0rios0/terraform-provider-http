@@ -460,7 +460,7 @@ func isStatusCodeTolerated(
 }
 
 func populateResponseState(
-	ctx context.Context,
+	_ context.Context,
 	model *HTTPRequestResourceModel,
 	response *http.Response,
 	responseBody []byte,
