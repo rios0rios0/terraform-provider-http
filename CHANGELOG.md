@@ -31,6 +31,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 - changed the Go version to `1.26.0` and updated all module dependencies
 - updated `.github/copilot-instructions.md` to reflect the current project state (v2.3.0, Go 1.26.0, new features)
+- changed the Go version to `1.26.1` and updated all module dependencies
 
 ## [2.3.0] - 2025-12-23
 
