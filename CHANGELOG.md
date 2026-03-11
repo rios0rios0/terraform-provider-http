@@ -17,20 +17,22 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-03-11
+
 ### Added
 
 - added `tolerated_status_codes` attribute to `http_request` resource, allowing specific non-2xx HTTP status codes (e.g. 404) to be treated as successful instead of causing errors
-
-### Fixed
-
-- fixed golangci-lint findings: replaced `interface{}` with `any` (modernize), added nolint directives for expected SSRF and password field patterns (gosec), and wrapped long lines (golines)
-- fixed CodeQL SARIF upload by adding `security-events: write` permission to CI workflow
-- fixed Makefile script paths to match the updated pipelines repository structure
 
 ### Changed
 
 - changed the Go version to `1.26.0` and updated all module dependencies
 - updated `.github/copilot-instructions.md` to reflect the current project state (v2.3.0, Go 1.26.0, new features)
+
+### Fixed
+
+- fixed CodeQL SARIF upload by adding `security-events: write` permission to CI workflow
+- fixed Makefile script paths to match the updated pipelines repository structure
+- fixed golangci-lint findings: replaced `interface{}` with `any` (modernize), added nolint directives for expected SSRF and password field patterns (gosec), and wrapped long lines (golines)
 
 ## [2.3.0] - 2025-12-23
 
