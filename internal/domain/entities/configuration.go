@@ -7,7 +7,7 @@ type Configuration struct {
 
 type BasicAuth struct {
 	Username string
-	Password string //nolint:gosec // G117: this is a struct field name, not a hardcoded credential
+	Password string
 }
 
 func NewConfiguration(url string) *Configuration {
