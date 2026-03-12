@@ -1,6 +1,6 @@
 module github.com/rios0rios0/terraform-provider-http
 
-go 1.26.0
+go 1.26.1
 
 require (
 	github.com/google/uuid v1.6.0
