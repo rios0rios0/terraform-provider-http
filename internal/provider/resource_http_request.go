@@ -367,7 +367,6 @@ func (it *HTTPRequestResource) Create(
 	}
 
 	client := it.getHTTPClient(ctx, model)
-	//nolint:gosec // G704: SSRF is expected behavior for a Terraform HTTP provider - URLs are user-configured
 	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing request using HTTP client...", err.Error())
@@ -636,7 +635,6 @@ func (it *HTTPRequestResource) Delete(
 	}
 
 	client := it.getHTTPClient(ctx, model)
-	//nolint:gosec // G704: SSRF is expected behavior for a Terraform HTTP provider - URLs are user-configured
 	response, err := client.Do(request)
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing DELETE HTTP request", err.Error())
