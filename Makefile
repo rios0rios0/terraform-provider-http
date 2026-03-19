@@ -27,7 +27,7 @@ test: scripts
 	$(SCRIPTS_DIR)/global/scripts/languages/golang/test/run.sh .
 
 
-VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "dev")
+VERSION ?= $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
 LDFLAGS := -X main.version=$(VERSION)
 
 docs:
