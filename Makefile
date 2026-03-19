@@ -27,7 +27,7 @@ test: scripts
 	$(SCRIPTS_DIR)/global/scripts/languages/golang/test/run.sh .
 
 
-VERSION = 2.3.0
+VERSION = 2.4.1
 
 docs:
 	export GOBIN=$PWD/bin
