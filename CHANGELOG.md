@@ -8,7 +8,7 @@ When a new release is proposed:
 
 1. Create a new branch `bump/x.x.x` (this isn't a long-lived branch!!!);
 2. The Unreleased section on `CHANGELOG.md` gets a version number and date;
-3. Update the `version` constant in the `main.go` file, also on the `Makefile` if applicable;
+3. Verify the `VERSION` in the `Makefile` if applicable (it auto-detects from git tags by default);
 4. Open a Pull Request with the bump version changes targeting the `main` branch;
 5. When the Pull Request is merged, a new Git tag must be created using [GitHub environment](https://github.com/rios0rios0/terraform-provider-http/tags).
 
@@ -17,8 +17,11 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-03-19
+
 ### Changed
 
+- changed version injection to use ldflags at build time instead of a hardcoded constant
 - changed the Go module dependencies to their latest versions
 
 ## [2.4.0] - 2026-03-12

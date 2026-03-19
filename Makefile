@@ -27,7 +27,8 @@ test: scripts
 	$(SCRIPTS_DIR)/global/scripts/languages/golang/test/run.sh .
 
 
-VERSION = 2.3.0
+VERSION ?= $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
+LDFLAGS := -X main.version=$(VERSION)
 
 docs:
 	export GOBIN=$PWD/bin
@@ -36,7 +37,7 @@ docs:
 	tfplugindocs generate
 
 build:
-	go build -o bin/terraform-provider-http
+	go build -ldflags "$(LDFLAGS) -s -w" -o bin/terraform-provider-http
 
 install:
 	make build
