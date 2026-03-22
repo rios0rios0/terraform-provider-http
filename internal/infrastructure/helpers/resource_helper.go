@@ -105,6 +105,58 @@ func BoolAttributeNoReplace(required bool, description string) schema.BoolAttrib
 	return attribute
 }
 
+// StringAttributeWriteOnly creates a write-only string attribute that is never stored in state or shown in plan diffs.
+// Use this for fields that are only needed during destroy-time and should not trigger plan diffs when changed.
+// Requires Terraform 1.11+.
+func StringAttributeWriteOnly(required bool, description string) schema.StringAttribute {
+	attribute := schema.StringAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+// MapAttributeWriteOnly creates a write-only map attribute that is never stored in state or shown in plan diffs.
+// Use this for fields that are only needed during destroy-time and should not trigger plan diffs when changed.
+// Requires Terraform 1.11+.
+func MapAttributeWriteOnly(required bool, elementType attr.Type, description string) schema.MapAttribute {
+	attribute := schema.MapAttribute{
+		ElementType:         elementType,
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+// BoolAttributeWriteOnly creates a write-only bool attribute that is never stored in state or shown in plan diffs.
+// Use this for fields that are only needed during destroy-time and should not trigger plan diffs when changed.
+// Requires Terraform 1.11+.
+func BoolAttributeWriteOnly(required bool, description string) schema.BoolAttribute {
+	attribute := schema.BoolAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
 func ComputedStringAttribute(description string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Computed:            true,

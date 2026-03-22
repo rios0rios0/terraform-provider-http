@@ -35,13 +35,28 @@ var jsonPathTokenRe = regexp.MustCompile(`\$\.[^/]+`)
 
 // Ensure HTTPRequestResource satisfies various resources interfaces.
 var (
-	_ resource.Resource                = &HTTPRequestResource{}
-	_ resource.ResourceWithConfigure   = &HTTPRequestResource{}
-	_ resource.ResourceWithImportState = &HTTPRequestResource{}
-	_ resource.ResourceWithModifyPlan  = &HTTPRequestResource{}
+	_ resource.Resource                  = &HTTPRequestResource{}
+	_ resource.ResourceWithConfigure     = &HTTPRequestResource{}
+	_ resource.ResourceWithImportState   = &HTTPRequestResource{}
+	_ resource.ResourceWithModifyPlan    = &HTTPRequestResource{}
+	_ resource.ResourceWithUpgradeState  = &HTTPRequestResource{}
 )
 
 const AmountOfPartsInID = 2
+
+// deleteParamsPrivateKey is the key used to store delete parameters in the resource's private state.
+// These parameters are write-only (never stored in the Terraform state artifact) and are only
+// accessible to the provider at destroy-time via this private state mechanism.
+const deleteParamsPrivateKey = "delete_params"
+
+// deleteParamsPrivate holds the destroy-time parameters serialised as JSON in private state.
+type deleteParamsPrivate struct {
+	IsDeleteEnabled   bool              `json:"is_delete_enabled"`
+	DeleteMethod      string            `json:"delete_method,omitempty"`
+	DeletePath        string            `json:"delete_path,omitempty"`
+	DeleteHeaders     map[string]string `json:"delete_headers,omitempty"`
+	DeleteRequestBody string            `json:"delete_request_body,omitempty"`
+}
 
 // HTTPRequestResource defines the resource implementation.
 type HTTPRequestResource struct {
@@ -126,6 +141,7 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 	addStateAttributes(attrs)
 
 	return schema.Schema{
+		Version: 1,
 		Description: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
 		MarkdownDescription: "Represents an HTTP request resource, allowing configuration of various " +
@@ -201,18 +217,23 @@ func addResourceConfigAttributes(attrs map[string]schema.Attribute) {
 }
 
 func addDeleteControlAttributes(attrs map[string]schema.Attribute) {
-	attrs["is_delete_enabled"] = helpers.BoolAttributeNoReplace(false,
+	attrs["is_delete_enabled"] = helpers.BoolAttributeWriteOnly(false,
 		"Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, "+
-			"a DELETE will be sent to the original `path`.")
-	attrs["delete_method"] = helpers.StringAttributeNoReplace(false,
-		"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE.")
-	attrs["delete_path"] = helpers.StringAttributeNoReplace(false,
+			"a DELETE will be sent to the original `path`. "+
+			"Write-only: never stored in state; stored in provider private state instead.")
+	attrs["delete_method"] = helpers.StringAttributeWriteOnly(false,
+		"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE. "+
+			"Write-only: never stored in state; stored in provider private state instead.")
+	attrs["delete_path"] = helpers.StringAttributeWriteOnly(false,
 		"Path to call during deletion. Supports inline JSONPath tokens like \"/posts/$.data.id\" "+
-			"evaluated against the `response_body` from create.")
-	attrs["delete_headers"] = helpers.MapAttributeNoReplace(false, types.StringType,
-		"Headers to send only during deletion.")
-	attrs["delete_request_body"] = helpers.StringAttributeNoReplace(false,
-		"Body to send only during deletion.")
+			"evaluated against the `response_body` from create. "+
+			"Write-only: never stored in state; stored in provider private state instead.")
+	attrs["delete_headers"] = helpers.MapAttributeWriteOnly(false, types.StringType,
+		"Headers to send only during deletion. "+
+			"Write-only: never stored in state; stored in provider private state instead.")
+	attrs["delete_request_body"] = helpers.StringAttributeWriteOnly(false,
+		"Body to send only during deletion. "+
+			"Write-only: never stored in state; stored in provider private state instead.")
 	attrs["delete_resolved_path"] = helpers.ComputedStringAttribute(
 		"The `delete_path` with JSONPath tokens resolved from the create response, when possible.")
 }
@@ -351,6 +372,19 @@ func (it *HTTPRequestResource) Create(
 		return
 	}
 
+	// WriteOnly attributes are nullified in the plan artifact before being passed to the
+	// provider. Re-read them from the configuration which always carries the user's values.
+	var configModel HTTPRequestResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &configModel)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	model.IsDeleteEnabled = configModel.IsDeleteEnabled
+	model.DeleteMethod = configModel.DeleteMethod
+	model.DeletePath = configModel.DeletePath
+	model.DeleteHeaders = configModel.DeleteHeaders
+	model.DeleteRequestBody = configModel.DeleteRequestBody
+
 	endpoint, diags := it.buildFullURL(ctx, model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -407,6 +441,10 @@ func (it *HTTPRequestResource) Create(
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
+
+	// Persist delete params (write-only attrs) in private state so Delete() can access them.
+	resp.Diagnostics.Append(marshalDeleteParamsToPrivate(ctx, model, resp.Private)...)
+
 	tflog.Info(ctx, "Completed HTTP request...", map[string]any{"success": true})
 }
 
@@ -608,6 +646,15 @@ func (it *HTTPRequestResource) Delete(
 		return
 	}
 
+	// Delete params are write-only and not stored in state. Read them from
+	// provider private state where they were saved during Create/Update.
+	deleteParams, diags := unmarshalDeleteParamsFromPrivate(ctx, req.Private)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	applyDeleteParamsToModel(&model, deleteParams)
+
 	if !isBoolTrue(model.IsDeleteEnabled) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -703,6 +750,194 @@ func (it *HTTPRequestResource) ImportState(
 	// save the model in the state
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
+
+	// Persist any delete params supplied in the import payload to private state.
+	resp.Diagnostics.Append(marshalDeleteParamsToPrivate(ctx, *model, resp.Private)...)
+}
+
+// UpgradeState implements resource.ResourceWithUpgradeState.
+// It migrates resources from schema version 0 (delete params stored as regular state attributes)
+// to schema version 1 (delete params are write-only and stored only in private state).
+func (it *HTTPRequestResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	// Build the v0 schema: same as the current schema except delete control attributes
+	// use the old Optional (NoReplace) variants rather than WriteOnly.
+	v0Attrs := make(map[string]schema.Attribute)
+	addRequestAttributes(v0Attrs)
+	addResourceConfigAttributes(v0Attrs)
+	addDeleteControlAttributesV0(v0Attrs)
+	addStateAttributes(v0Attrs)
+
+	v0Schema := schema.Schema{
+		Version:    0,
+		Attributes: v0Attrs,
+	}
+
+	return map[int64]resource.StateUpgrader{
+		// Upgrade from v0 (delete params in regular state) to v1 (write-only, private state).
+		// NOTE: The UpgradeStateResponse type does not expose a Private field, so delete params
+		// cannot be migrated to private state here. They will be populated in private state
+		// on the next terraform apply that triggers a Create or Update operation.
+		0: {
+			PriorSchema: &v0Schema,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var oldModel httpRequestResourceModelV0
+				resp.Diagnostics.Append(req.State.Get(ctx, &oldModel)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				// Copy all non-delete-param fields to the new model.
+				// Delete params are write-only in v1, so they are intentionally omitted.
+				newModel := HTTPRequestResourceModel{
+					Method:               oldModel.Method,
+					Path:                 oldModel.Path,
+					Headers:              oldModel.Headers,
+					RequestBody:          oldModel.RequestBody,
+					IsResponseBodyJSON:   oldModel.IsResponseBodyJSON,
+					ResponseBodyIDFilter: oldModel.ResponseBodyIDFilter,
+					QueryParameters:      oldModel.QueryParameters,
+					ToleratedStatusCodes: oldModel.ToleratedStatusCodes,
+					IgnoreChanges:        oldModel.IgnoreChanges,
+					BaseURL:              oldModel.BaseURL,
+					BasicAuth:            oldModel.BasicAuth,
+					IgnoreTLS:            oldModel.IgnoreTLS,
+					DeleteResolvedPath:   oldModel.DeleteResolvedPath,
+					ID:                   oldModel.ID,
+					ResponseCode:         oldModel.ResponseCode,
+					ResponseBody:         oldModel.ResponseBody,
+					ResponseBodyID:       oldModel.ResponseBodyID,
+					ResponseBodyJSON:     oldModel.ResponseBodyJSON,
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, newModel)...)
+			},
+		},
+	}
+}
+
+// httpRequestResourceModelV0 represents the v0 resource model where delete params
+// were stored as regular state attributes (not write-only).
+type httpRequestResourceModelV0 struct {
+	Method               types.String `tfsdk:"method"`
+	Path                 types.String `tfsdk:"path"`
+	Headers              types.Map    `tfsdk:"headers"`
+	RequestBody          types.String `tfsdk:"request_body"`
+	IsResponseBodyJSON   types.Bool   `tfsdk:"is_response_body_json"`
+	ResponseBodyIDFilter types.String `tfsdk:"response_body_id_filter"`
+	QueryParameters      types.Map    `tfsdk:"query_parameters"`
+	ToleratedStatusCodes types.Set    `tfsdk:"tolerated_status_codes"`
+	IgnoreChanges        types.Set    `tfsdk:"ignore_changes"`
+	BaseURL              types.String `tfsdk:"base_url"`
+	BasicAuth            types.Object `tfsdk:"basic_auth"`
+	IgnoreTLS            types.Bool   `tfsdk:"ignore_tls"`
+	IsDeleteEnabled      types.Bool   `tfsdk:"is_delete_enabled"`
+	DeleteMethod         types.String `tfsdk:"delete_method"`
+	DeletePath           types.String `tfsdk:"delete_path"`
+	DeleteHeaders        types.Map    `tfsdk:"delete_headers"`
+	DeleteRequestBody    types.String `tfsdk:"delete_request_body"`
+	DeleteResolvedPath   types.String `tfsdk:"delete_resolved_path"`
+	ID                   types.String `tfsdk:"id"`
+	ResponseCode         types.Int32  `tfsdk:"response_code"`
+	ResponseBody         types.String `tfsdk:"response_body"`
+	ResponseBodyID       types.String `tfsdk:"response_body_id"`
+	ResponseBodyJSON     types.Map    `tfsdk:"response_body_json"`
+}
+
+// addDeleteControlAttributesV0 defines the v0 schema attributes for delete controls
+// (Optional, not WriteOnly) used by the state upgrader.
+func addDeleteControlAttributesV0(attrs map[string]schema.Attribute) {
+	attrs["is_delete_enabled"] = helpers.BoolAttributeNoReplace(false,
+		"Enables remote deletion during `terraform destroy`.")
+	attrs["delete_method"] = helpers.StringAttributeNoReplace(false,
+		"HTTP method to use during deletion.")
+	attrs["delete_path"] = helpers.StringAttributeNoReplace(false,
+		"Path to call during deletion.")
+	attrs["delete_headers"] = helpers.MapAttributeNoReplace(false, types.StringType,
+		"Headers to send only during deletion.")
+	attrs["delete_request_body"] = helpers.StringAttributeNoReplace(false,
+		"Body to send only during deletion.")
+	attrs["delete_resolved_path"] = helpers.ComputedStringAttribute(
+		"The `delete_path` with JSONPath tokens resolved from the create response, when possible.")
+}
+
+// marshalDeleteParamsToPrivate serialises the write-only delete parameters from the model
+// into the provider's private state so they can be recovered during Delete().
+func marshalDeleteParamsToPrivate(ctx context.Context, model HTTPRequestResourceModel, private interface {
+	SetKey(context.Context, string, []byte) diag.Diagnostics
+}) diag.Diagnostics {
+	params := deleteParamsPrivate{
+		IsDeleteEnabled: isBoolTrue(model.IsDeleteEnabled),
+	}
+	if isNonEmptyString(model.DeleteMethod) {
+		params.DeleteMethod = model.DeleteMethod.ValueString()
+	}
+	if isNonEmptyString(model.DeletePath) {
+		params.DeletePath = model.DeletePath.ValueString()
+	}
+	if !model.DeleteHeaders.IsNull() && !model.DeleteHeaders.IsUnknown() {
+		var headers map[string]string
+		if d := model.DeleteHeaders.ElementsAs(ctx, &headers, false); !d.HasError() {
+			params.DeleteHeaders = headers
+		}
+	}
+	if isNonEmptyString(model.DeleteRequestBody) {
+		params.DeleteRequestBody = model.DeleteRequestBody.ValueString()
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		var d diag.Diagnostics
+		d.AddError("Failed to marshal delete params to private state", err.Error())
+		return d
+	}
+
+	return private.SetKey(ctx, deleteParamsPrivateKey, data)
+}
+
+// unmarshalDeleteParamsFromPrivate reads the previously serialised delete parameters
+// from the provider's private state. Returns nil (and no error) when the key is absent,
+// which indicates the resource was created before private-state tracking was introduced.
+func unmarshalDeleteParamsFromPrivate(ctx context.Context, private interface {
+	GetKey(context.Context, string) ([]byte, diag.Diagnostics)
+}) (*deleteParamsPrivate, diag.Diagnostics) {
+	if private == nil {
+		return nil, nil
+	}
+
+	data, diags := private.GetKey(ctx, deleteParamsPrivateKey)
+	if diags.HasError() || len(data) == 0 {
+		return nil, diags
+	}
+
+	var params deleteParamsPrivate
+	if err := json.Unmarshal(data, &params); err != nil {
+		var d diag.Diagnostics
+		d.AddError("Failed to unmarshal delete params from private state", err.Error())
+		return nil, d
+	}
+
+	return &params, nil
+}
+
+// applyDeleteParamsToModel merges the deserialised delete params (from private state) into
+// the resource model so that the existing Delete logic can use them unchanged.
+func applyDeleteParamsToModel(model *HTTPRequestResourceModel, params *deleteParamsPrivate) {
+	if params == nil {
+		return
+	}
+	model.IsDeleteEnabled = types.BoolValue(params.IsDeleteEnabled)
+	if params.DeleteMethod != "" {
+		model.DeleteMethod = types.StringValue(params.DeleteMethod)
+	}
+	if params.DeletePath != "" {
+		model.DeletePath = types.StringValue(params.DeletePath)
+	}
+	if len(params.DeleteHeaders) > 0 {
+		model.DeleteHeaders, _ = types.MapValueFrom(context.Background(), types.StringType, params.DeleteHeaders)
+	}
+	if params.DeleteRequestBody != "" {
+		model.DeleteRequestBody = types.StringValue(params.DeleteRequestBody)
+	}
 }
 
 func (it *HTTPRequestResource) buildRequest(
