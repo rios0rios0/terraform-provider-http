@@ -348,7 +348,9 @@ func TestHTTPRequestResource(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test_delete", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test_delete", "path", "/posts"),
-							resource.TestCheckResourceAttr("http_request.test_delete", "is_delete_enabled", "true"),
+							// Write-only attrs must NOT appear in state
+							resource.TestCheckNoResourceAttr("http_request.test_delete", "is_delete_enabled"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete", "delete_path"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete", "id"),
 							resource.TestCheckResourceAttr("http_request.test_delete", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete", "response_body"),
@@ -394,13 +396,14 @@ func TestHTTPRequestResource(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "path", "/posts"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "is_delete_enabled", "true"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "delete_path", "/posts/$.id"),
+							// Write-only attrs must NOT appear in state
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_path", "is_delete_enabled"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_path", "delete_path"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_path", "id"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_path", "response_body"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "response_body_id", "101"),
-							// Verify that delete_resolved_path is computed with the ID from the response
+							// delete_resolved_path IS computed (not write-only) and must remain in state
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_path", "delete_resolved_path", "/posts/101"),
 						),
 					},
@@ -449,19 +452,21 @@ func TestHTTPRequestResource(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "path", "/posts"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "is_delete_enabled", "true"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_method", "PATCH"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_path", "/posts/$.id"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.X-Delete-Reason", "terraform-destroy"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_headers.Content-Type", "application/json"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_request_body", `{"reason": "terraform destroy", "actor": "automation"}`),
+							// Write-only attrs must NOT appear in state
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_all", "is_delete_enabled"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_all", "delete_method"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_all", "delete_path"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_all", "delete_headers.X-Delete-Reason"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_custom_all", "delete_request_body"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_all", "id"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_custom_all", "response_body"),
 							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "response_body_id", "101"),
-							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_resolved_path", "/posts/101")),
+							// delete_resolved_path IS computed (not write-only) and must remain in state
+							resource.TestCheckResourceAttr("http_request.test_delete_custom_all", "delete_resolved_path", "/posts/101"),
+						),
 					},
-					// Destroy testing - this will attempt POST to /posts/101/archive with custom headers and body
+					// Destroy testing - this will attempt PATCH to /posts/101 with custom headers and body
 					{
 						Destroy: true,
 						Config:  config,
@@ -499,7 +504,8 @@ func TestHTTPRequestResource(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "method", "POST"),
 							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "path", "/posts"),
-							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "is_delete_enabled", "false"),
+							// Write-only attrs must NOT appear in state
+							resource.TestCheckNoResourceAttr("http_request.test_delete_disabled", "is_delete_enabled"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_disabled", "id"),
 							resource.TestCheckResourceAttr("http_request.test_delete_disabled", "response_code", "201"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_disabled", "response_body"),
@@ -539,8 +545,9 @@ func TestHTTPRequestResource(t *testing.T) {
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("http_request.test_delete_get", "method", "GET"),
 							resource.TestCheckResourceAttr("http_request.test_delete_get", "path", "/posts/1"),
-							resource.TestCheckResourceAttr("http_request.test_delete_get", "is_delete_enabled", "true"),
-							resource.TestCheckResourceAttr("http_request.test_delete_get", "delete_path", "/posts/1"),
+							// Write-only attrs must NOT appear in state
+							resource.TestCheckNoResourceAttr("http_request.test_delete_get", "is_delete_enabled"),
+							resource.TestCheckNoResourceAttr("http_request.test_delete_get", "delete_path"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_get", "id"),
 							resource.TestCheckResourceAttr("http_request.test_delete_get", "response_code", "200"),
 							resource.TestCheckResourceAttrSet("http_request.test_delete_get", "response_body"),
@@ -722,14 +729,13 @@ func TestHTTPRequestResource(t *testing.T) {
 			WithURL("https://jsonplaceholder.typicode.com").
 			Build()
 
-		// Both steps use the same delete_path, so delete_resolved_path won't change
-		// We disable delete to avoid the 404 error from the mock API during cleanup
+		// Both steps use the same delete_path; delete is disabled so no cleanup HTTP call fires.
 		configStep1 := providerConfig +
 			builders.NewResourceTFBuilder().
 				WithName("test_delete_method_no_replace").
 				WithMethod("GET").
 				WithPath("/posts/1").
-				WithIsDeleteEnabled(false). // Disabled to avoid cleanup issues
+				WithIsDeleteEnabled(false).
 				WithDeleteMethod("DELETE").
 				WithDeletePath("/posts/1").
 				Build()
@@ -739,40 +745,27 @@ func TestHTTPRequestResource(t *testing.T) {
 				WithName("test_delete_method_no_replace").
 				WithMethod("GET").
 				WithPath("/posts/1").
-				WithIsDeleteEnabled(false). // Disabled to avoid cleanup issues
-				WithDeleteMethod("POST").   // Changed from DELETE to POST
+				WithIsDeleteEnabled(false).
+				WithDeleteMethod("POST"). // Changed from DELETE to POST
 				WithDeletePath("/posts/1").
 				Build()
-
-		var originalID string
 
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:                 func() { testAccPreCheck(t) },
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
+				// Step 1: create
 				{
 					Config: configStep1,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_method_no_replace", "delete_method", "DELETE"),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_method_no_replace"]
-							originalID = rs.Primary.ID
-							return nil
-						},
+						// Write-only – must not be in state
+						resource.TestCheckNoResourceAttr("http_request.test_delete_method_no_replace", "delete_method"),
 					),
 				},
+				// Step 2: change a write-only delete param – must produce NO plan diff
 				{
-					Config: configStep2,
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_method_no_replace", "delete_method", "POST"),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_method_no_replace"]
-							if rs.Primary.ID != originalID {
-								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
-							}
-							return nil
-						},
-					),
+					Config:   configStep2,
+					PlanOnly: true,
 				},
 			},
 		})
@@ -808,36 +801,22 @@ func TestHTTPRequestResource(t *testing.T) {
 				}).
 				Build()
 
-		var originalID string
-
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:                 func() { testAccPreCheck(t) },
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
+				// Step 1: create
 				{
 					Config: configStep1,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Delete-Reason", "initial"),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_headers_no_replace"]
-							originalID = rs.Primary.ID
-							return nil
-						},
+						// Write-only – must not be in state
+						resource.TestCheckNoResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Delete-Reason"),
 					),
 				},
+				// Step 2: change write-only delete params – must produce NO plan diff
 				{
-					Config: configStep2,
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Delete-Reason", "changed"),
-						resource.TestCheckResourceAttr("http_request.test_delete_headers_no_replace", "delete_headers.X-Extra-Header", "new"),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_headers_no_replace"]
-							if rs.Primary.ID != originalID {
-								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
-							}
-							return nil
-						},
-					),
+					Config:   configStep2,
+					PlanOnly: true,
 				},
 			},
 		})
@@ -868,35 +847,22 @@ func TestHTTPRequestResource(t *testing.T) {
 				WithDeleteRequestBody(strconv.Quote(`{"reason": "changed", "extra": "field"}`)).
 				Build()
 
-		var originalID string
-
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:                 func() { testAccPreCheck(t) },
 			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 			Steps: []resource.TestStep{
+				// Step 1: create
 				{
 					Config: configStep1,
 					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_body_no_replace", "delete_request_body", `{"reason": "initial"}`),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_body_no_replace"]
-							originalID = rs.Primary.ID
-							return nil
-						},
+						// Write-only – must not be in state
+						resource.TestCheckNoResourceAttr("http_request.test_delete_body_no_replace", "delete_request_body"),
 					),
 				},
+				// Step 2: change write-only delete params – must produce NO plan diff
 				{
-					Config: configStep2,
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test_delete_body_no_replace", "delete_request_body", `{"reason": "changed", "extra": "field"}`),
-						func(s *terraform.State) error {
-							rs := s.RootModule().Resources["http_request.test_delete_body_no_replace"]
-							if rs.Primary.ID != originalID {
-								return fmt.Errorf("resource was replaced: ID changed from %s to %s", originalID, rs.Primary.ID)
-							}
-							return nil
-						},
-					),
+					Config:   configStep2,
+					PlanOnly: true,
 				},
 			},
 		})
@@ -932,6 +898,53 @@ func TestHTTPRequestResource(t *testing.T) {
 						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "id"),
 						resource.TestCheckResourceAttrSet("http_request.test_tolerated_404", "response_body"),
 					),
+				},
+			},
+		})
+	})
+
+	t.Run("changing is_delete_enabled should NOT produce any plan diff", func(t *testing.T) {
+		// Acceptance criterion: write-only delete params must never generate a plan diff,
+		// regardless of which value the practitioner sets in the configuration.
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL("https://jsonplaceholder.typicode.com").
+			Build()
+
+		configDeleteDisabled := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_enabled_no_diff").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(false).
+				Build()
+
+		configDeleteEnabled := providerConfig +
+			builders.NewResourceTFBuilder().
+				WithName("test_delete_enabled_no_diff").
+				WithMethod("GET").
+				WithPath("/posts/1").
+				WithIsDeleteEnabled(true).
+				WithDeletePath("/posts/1").
+				Build()
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				// Step 1: create with is_delete_enabled = false
+				{
+					Config: configDeleteDisabled,
+					Check: resource.ComposeAggregateTestCheckFunc(
+						resource.TestCheckResourceAttr("http_request.test_delete_enabled_no_diff", "response_code", "200"),
+						// Write-only attrs must NOT appear in state
+						resource.TestCheckNoResourceAttr("http_request.test_delete_enabled_no_diff", "is_delete_enabled"),
+						resource.TestCheckNoResourceAttr("http_request.test_delete_enabled_no_diff", "delete_path"),
+					),
+				},
+				// Step 2: flip is_delete_enabled to true – must produce NO plan diff
+				{
+					Config:   configDeleteEnabled,
+					PlanOnly: true,
 				},
 			},
 		})

@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  Build:
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [stable, oldstable]
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Setup git
+        # required to run tests on windows
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.symlinks true
+      - name: Fetch Repository
+        uses: actions/checkout@v5
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+      - run: go build .
+      - run: ./gotestsum -f testname -- ./... -race -count=1
