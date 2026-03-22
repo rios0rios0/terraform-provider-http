@@ -1,0 +1,115 @@
+version: 2.1
+
+orbs:
+  go: gotest/tools@0.0.14
+
+workflows:
+  ci:
+    jobs:
+      - lint
+      - build
+
+      - update-windows-golden:
+          filters:
+            branches: {ignore: '/.*/'}
+
+      - build:
+          name: release
+          publish: true
+          filters:
+            tags: {only: '/v[0-9]+(\.[0-9]+)*/'}
+            branches: {ignore: '/.*/'}
+
+executors:
+  windows:
+    machine:
+      image: windows-server-2019-vs2019:stable
+      resource_class: windows.medium
+      shell: bash.exe
+
+commands:
+  install-goreleaser:
+    description: Install goreleaser
+    steps:
+      - run:
+          name: Install goreleaser
+          command: |
+            wget https://github.com/goreleaser/goreleaser/releases/download/v1.17.0/goreleaser_Linux_x86_64.tar.gz
+            echo "9fb13d0b9611794da8d71688a50b1f2ea221fcd5f2f4ad529f8b45ee909b2371  goreleaser_Linux_x86_64.tar.gz" > checksum.txt
+            sha256sum -c checksum.txt
+            tar -xf goreleaser_Linux_x86_64.tar.gz
+            mkdir -p ./bin
+            mv goreleaser ./bin
+
+
+jobs:
+
+  build:
+    parameters:
+      publish:
+        type: boolean
+        default: false
+    executor:
+      name: go/golang
+      tag: 1.25-alpine
+    steps:
+      - go/install: {package: git}
+      - go/install-ssh
+      - checkout
+      - go/mod-download
+      - go/mod-tidy-check
+      - install-goreleaser
+      - unless:
+          condition: << parameters.publish >>
+          steps:
+            run:
+              name: build binaries
+              command: bin/goreleaser --clean --snapshot --config .project/goreleaser.yml
+      - when:
+          condition: << parameters.publish >>
+          steps:
+            run:
+              name: build and publish binaries
+              command: bin/goreleaser --clean --skip-validate --config .project/goreleaser.yml
+      - store_artifacts:
+          path: ./dist
+          destination: dist
+
+  lint:
+    executor:
+      name: go/golang
+      tag: 1.25-alpine
+    steps:
+      - checkout
+      - run: go mod download
+      - run:
+          name: Install golangci-lint
+          command: |
+            mkdir -p /go/bin
+
+            download=https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh
+            wget -O- -q "$download" | sh -s -- -b /go/bin/ v2.4.0
+      - run:
+          name: Lint
+          command: |
+            golangci-lint run -v --concurrency 2 --config .project/golangci-lint.yml
+
+
+  update-windows-golden:
+    executor: windows
+    steps:
+      - checkout
+      - go/install-gotestsum
+      - run: |
+          git config --global core.autocrlf false
+          git config --global core.symlinks true
+      - run: |
+          choco upgrade golang
+          go version
+
+      - run: |
+          /go/bin/gotestsum ./testjson ./internal/junitxml -test.update-golden
+
+      - store_artifacts:
+          path: testjson/testdata/
+          destination: golden
