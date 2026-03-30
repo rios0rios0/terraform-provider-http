@@ -105,6 +105,49 @@ func BoolAttributeNoReplace(required bool, description string) schema.BoolAttrib
 	return attribute
 }
 
+func StringAttributeWriteOnly(required bool, description string) schema.StringAttribute {
+	attribute := schema.StringAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+func MapAttributeWriteOnly(required bool, elementType attr.Type, description string) schema.MapAttribute {
+	attribute := schema.MapAttribute{
+		ElementType:         elementType,
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
+func BoolAttributeWriteOnly(required bool, description string) schema.BoolAttribute {
+	attribute := schema.BoolAttribute{
+		Description:         description,
+		MarkdownDescription: description,
+		WriteOnly:           true,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
 func ComputedStringAttribute(description string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Computed:            true,

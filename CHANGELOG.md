@@ -17,6 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Changed
+
+- changed `is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, and `delete_request_body` to `WriteOnly` schema attributes (requires Terraform `1.11+`): they are no longer persisted in Terraform state and no longer produce plan diffs when changed in configuration. Values are stored in provider private state and read back during `terraform destroy`
+- changed schema version from `0` to `1` to support the automatic state upgrade that removes the above destroy parameters from any existing state
+- **BREAKING CHANGE:** existing resources that stored destroy parameters in state will have those values removed automatically when Terraform runs the built-in state upgrade to schema version `1`. The new values are read from the configuration at the next `terraform apply` that performs a Create or Update operation, at which point they are stored in opaque private state for use by `terraform destroy`. Resources that are destroyed before any subsequent apply after upgrading the provider will use the default behavior (`is_delete_enabled = false`), meaning no remote HTTP delete call is made
+
 ## [2.4.2] - 2026-03-22
 
 ### Changed
