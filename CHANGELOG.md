@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-04-01
+
 ### Changed
 
 - changed the Go module dependencies to their latest versions
@@ -57,9 +59,9 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Fixed
 
-- fixed CodeQL SARIF upload by adding `security-events: write` permission to CI workflow
 - fixed `golangci-lint` findings: replaced `interface{}` with `any` (`modernize`), added `nolint` directives for expected SSRF and password field patterns (`gosec`), and wrapped long lines (`golines`)
 - fixed `Makefile` script paths to match the updated pipelines repository structure
+- fixed CodeQL SARIF upload by adding `security-events: write` permission to CI workflow
 
 ## [2.3.0] - 2025-12-23
 
