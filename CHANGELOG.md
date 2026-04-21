@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.0.4] - 2026-04-21
+
 ### Changed
 
 - changed the Go module dependencies to their latest versions
