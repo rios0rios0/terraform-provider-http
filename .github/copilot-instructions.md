@@ -5,8 +5,8 @@ Always reference these instructions first and fall back to search or bash comman
 ## Working Effectively
 
 ### Prerequisites and Setup
-- Install Go 1.26.0 (as specified in `go.mod`)
-- Install Terraform 1.10.4+
+- Install Go 1.26.2 (as specified in `go.mod`)
+- Install Terraform 1.11+ (required for WriteOnly attributes introduced in v3.0.0)
 - Install make for build automation
 
 ### Essential Build and Test Commands
@@ -27,13 +27,13 @@ Always reference these instructions first and fall back to search or bash comman
 
 ### Manual Provider Testing
 - Always run `make install` before testing provider changes
-- Create test Terraform configuration in `/tmp/tf-test/main.tf`:
+- Create test Terraform configuration in `/tmp/tf-test/main.tf`. The version must match the `VERSION` used by `make install` (auto-detected from the latest git tag, e.g. `3.0.5`):
 ```hcl
 terraform {
   required_providers {
     http = {
       source = "hashicorp-local.com/rios0rios0/http"
-      version = "2.3.0"
+      version = "3.0.5" # must match the VERSION from `make install`
     }
   }
 }
@@ -62,7 +62,7 @@ resource "http_request" "test_request" {
 1. **Build and Install**: `make build && make install` -- must complete without errors
 2. **Test Suite**: `make test` -- all tests must pass with a coverage report
 3. **Linting**: `make lint` -- all linting issues must be resolved
-4. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/2.3.0/linux_amd64/`
+4. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/`
 5. **Terraform Integration**: `terraform init` and `terraform plan` must work with local provider
 6. **Documentation**: `make docs` must generate clean documentation in `docs/` directory
 7. **CHANGELOG.md**: **ALWAYS update CHANGELOG.md** with changes in the `[Unreleased]` section
@@ -95,13 +95,15 @@ resource "http_request" "test_request" {
 - Basic authentication and TLS options (configurable at both provider and resource level)
 - Query parameters and request body support
 - State management with response storage
-- Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`, `delete_resolved_path`)
+- Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`, `delete_resolved_path`). Since v3.0.0 these are WriteOnly attributes (not persisted in state; stored in provider private state)
+- `tolerated_status_codes` attribute to treat specific non-2xx HTTP status codes as successful
 - `ignore_changes` attribute to suppress diffs for specific resource attributes during updates
 - Resource-level configuration (`base_url`, `basic_auth`, `ignore_tls`) to support `count`/`for_each` with different APIs
 - State importing via Base64-encoded JSON (`terraform import`)
 
 ### Version and Configuration
-- Current version: 2.3.0 (defined in `main.go` and `Makefile`)
+- Version is auto-detected from the latest git tag via `ldflags` at build time (defaults to `dev` when no tag is present). See `VERSION` in `Makefile`.
+- Schema version: 1 (upgraded from 0 in v3.0.0; state upgrade runs automatically)
 - Provider address: `registry.terraform.io/rios0rios0/http`
 - Local testing address: `hashicorp-local.com/rios0rios0/http`
 
@@ -117,7 +119,7 @@ resource "http_request" "test_request" {
 
 ### Provider Installation Issues
 - Local provider isn't found: Ensure `make install` completed successfully
-- Version mismatches: Check version in `main.go` and `Makefile` match version in test configurations
+- Version mismatches: Run `git describe --tags --abbrev=0` to see the VERSION that `make install` will use, and match it in test configurations
 
 ## External Dependencies
 - Uses external CI pipeline: `rios0rios0/pipelines/.github/workflows/go-binary.yaml@main` (in `.github/workflows/default.yaml`)
