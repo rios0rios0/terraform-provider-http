@@ -21,3 +21,7 @@ jobs:
     uses: 'rios0rios0/pipelines/.github/workflows/go-binary.yaml@main'
     with:
       binary_name: 'terraform-provider-http'
+      gpg_sign: true
+    secrets:
+      gpg_private_key: '${{ secrets.GPG_PRIVATE_KEY }}'
+      gpg_passphrase: '${{ secrets.GPG_PASSPHRASE }}'
