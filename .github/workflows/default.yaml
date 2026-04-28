@@ -24,4 +24,4 @@ jobs:
       gpg_sign: true
     secrets:
       gpg_private_key: '${{ secrets.GPG_PRIVATE_KEY }}'
-      gpg_passphrase: '${{ secrets.GPG_PASSPHRASE }}'
+      gpg_passphrase: '${{ secrets.PASSPHRASE }}'
