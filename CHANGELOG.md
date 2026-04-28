@@ -25,6 +25,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 - refreshed `.github/copilot-instructions.md` to reflect v3.x state: Go 1.26.2, Terraform 1.11+, auto-detected version via ldflags, WriteOnly delete attributes, and `tolerated_status_codes`
 - changed the Go module dependencies to their latest versions
+- changed the Go module dependencies to their latest versions
 
 ## [3.0.6] - 2026-04-24
 
