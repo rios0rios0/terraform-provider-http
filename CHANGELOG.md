@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Changed
+
+- changed the Go module dependencies to their latest versions
+
 ### Fixed
 
 - fixed silent regression where every release since `3.0.0` (2026-03-31) shipped with zero assets, because the repo's `.goreleaser.yml` declares a `signs:` block referencing `{{ .Env.GPG_FINGERPRINT }}` but the shared `delivery-binary` action never imported a GPG key or populated that env var. GoReleaser failed at `signing artifacts` and uploaded nothing — leaving Terraform Registry with empty release pages for `3.0.0`, `3.0.1`, `3.0.2`, `3.0.3`, `3.0.4`, `3.0.5`, and `3.1.0`. Wired `gpg_sign: true` into the `go-binary.yaml` reusable workflow and forwarded the existing repo secrets `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`. The new `crazy-max/ghaction-import-gpg@v6` step ([added in pipelines PR #388](https://github.com/rios0rios0/pipelines/pull/388)) imports the key and exposes its fingerprint to GoReleaser as `GPG_FINGERPRINT` at runtime, so no `GPG_FINGERPRINT` secret needs to be maintained in sync with the private key
