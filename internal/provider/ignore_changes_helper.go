@@ -63,8 +63,8 @@ func getSupportedIgnoreAttributes() map[string]IgnoreAttributeKind {
 		"request_body":            IgnoreKindBody,
 		"query_parameters":        IgnoreKindMap,
 		"base_url":                IgnoreKindScalar,
-		"basic_auth":              IgnoreKindObject,
-		"ignore_tls":              IgnoreKindScalar,
+		attrBasicAuth:             IgnoreKindObject,
+		attrIgnoreTLS:             IgnoreKindScalar,
 		"is_response_body_json":   IgnoreKindScalar,
 		"response_body_id_filter": IgnoreKindScalar,
 	}
@@ -102,7 +102,7 @@ func getIgnoreAppliers() map[string]ignoreApplier {
 			responseBodyIDFilterGetter,
 			responseBodyIDFilterGetter,
 		),
-		"ignore_tls": makeBoolApplier(
+		attrIgnoreTLS: makeBoolApplier(
 			ignoreTLSGetter,
 			ignoreTLSGetter,
 		),
@@ -122,7 +122,7 @@ func getIgnoreAppliers() map[string]ignoreApplier {
 			requestBodyGetter,
 			requestBodyGetter,
 		),
-		"basic_auth": makeObjectApplier(
+		attrBasicAuth: makeObjectApplier(
 			basicAuthGetter,
 			basicAuthGetter,
 		),

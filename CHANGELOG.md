@@ -20,6 +20,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 ### Changed
 
 - changed the Go module dependencies to their latest versions
+- extracted repeated string literals (`basic_auth`, `ignore_tls`, `username`, `password`) into package-level constants to satisfy `goconst` lint rule
 
 ## [3.1.1] - 2026-04-29
 
