@@ -18,21 +18,21 @@ func (b *ProviderValueBuilder) WithURL(url string) *ProviderValueBuilder {
 }
 
 func (b *ProviderValueBuilder) WithUsername(username string) *ProviderValueBuilder {
-	if basicAuth, ok := b.values["basic_auth"]; ok {
+	if basicAuth, ok := b.values[attrBasicAuth]; ok {
 		steps := tftypes.NewAttributePath().
-			WithAttributeName("username").
+			WithAttributeName(attrUsername).
 			WithElementKeyValue(tftypes.NewValue(tftypes.String, username)).LastStep()
 		value, _ := basicAuth.ApplyTerraform5AttributePathStep(steps)
-		b.values["basic_auth"] = tftypes.NewValue(basicAuth.Type(), value)
+		b.values[attrBasicAuth] = tftypes.NewValue(basicAuth.Type(), value)
 	} else {
-		b.values["basic_auth"] = tftypes.NewValue(
+		b.values[attrBasicAuth] = tftypes.NewValue(
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
-					"username": tftypes.String,
+					attrUsername: tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
-				"username": tftypes.NewValue(tftypes.String, username),
+				attrUsername: tftypes.NewValue(tftypes.String, username),
 			},
 		)
 	}
@@ -40,21 +40,21 @@ func (b *ProviderValueBuilder) WithUsername(username string) *ProviderValueBuild
 }
 
 func (b *ProviderValueBuilder) WithPassword(password string) *ProviderValueBuilder {
-	if basicAuth, ok := b.values["basic_auth"]; ok {
+	if basicAuth, ok := b.values[attrBasicAuth]; ok {
 		steps := tftypes.NewAttributePath().
-			WithAttributeName("password").
+			WithAttributeName(attrPassword).
 			WithElementKeyValue(tftypes.NewValue(tftypes.String, password)).LastStep()
 		value, _ := basicAuth.ApplyTerraform5AttributePathStep(steps)
-		b.values["basic_auth"] = tftypes.NewValue(basicAuth.Type(), value)
+		b.values[attrBasicAuth] = tftypes.NewValue(basicAuth.Type(), value)
 	} else {
-		b.values["basic_auth"] = tftypes.NewValue(
+		b.values[attrBasicAuth] = tftypes.NewValue(
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
-					"password": tftypes.String,
+					attrPassword: tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
-				"password": tftypes.NewValue(tftypes.String, password),
+				attrPassword: tftypes.NewValue(tftypes.String, password),
 			},
 		)
 	}
@@ -62,7 +62,7 @@ func (b *ProviderValueBuilder) WithPassword(password string) *ProviderValueBuild
 }
 
 func (b *ProviderValueBuilder) WithIgnoreTLS(ignore bool) *ProviderValueBuilder {
-	b.values["ignore_tls"] = tftypes.NewValue(tftypes.Bool, ignore)
+	b.values[attrIgnoreTLS] = tftypes.NewValue(tftypes.Bool, ignore)
 	return b
 }
 

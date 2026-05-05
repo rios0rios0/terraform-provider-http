@@ -15,6 +15,13 @@ import (
 	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
 )
 
+const (
+	attrBasicAuth = "basic_auth"
+	attrIgnoreTLS = "ignore_tls"
+	attrUsername  = "username"
+	attrPassword  = "password"
+)
+
 // Ensure HTTPProvider satisfies various provider interfaces.
 var (
 	_ provider.Provider              = &HTTPProvider{}
@@ -58,7 +65,7 @@ func GetHTTPProviderSchema() schema.Schema {
 				Optional: true,
 				// TODO: Validators: []validator.String{validators.NewStringNotEmpty("url")},
 			},
-			"basic_auth": schema.SingleNestedAttribute{
+			attrBasicAuth: schema.SingleNestedAttribute{
 				Description: "Credentials for basic authentication. " +
 					"This attribute allows you to specify the username and password required for basic HTTP authentication. " +
 					"It is optional and should be used when the target Web endpoint requires basic authentication for access.",
@@ -67,14 +74,14 @@ func GetHTTPProviderSchema() schema.Schema {
 					"It is optional and should be used when the target Web endpoint requires basic authentication for access.",
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
-					"username": schema.StringAttribute{
+					attrUsername: schema.StringAttribute{
 						Description: "The username for basic authentication. " +
 							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
 						MarkdownDescription: "The username for basic authentication. " +
 							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used.",
 						Required: true,
 					},
-					"password": schema.StringAttribute{
+					attrPassword: schema.StringAttribute{
 						Description: "The password for basic authentication. " +
 							"This is a required field within the `basic_auth` block and must be provided if basic authentication is used. " +
 							"The password is marked as sensitive to ensure it is not exposed in logs or state files.",
@@ -86,7 +93,7 @@ func GetHTTPProviderSchema() schema.Schema {
 					},
 				},
 			},
-			"ignore_tls": schema.BoolAttribute{
+			attrIgnoreTLS: schema.BoolAttribute{
 				Description: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
 					"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
 					"It is optional and defaults to `false`.",
@@ -135,20 +142,20 @@ func (it *HTTPProvider) ValidateConfig(
 	// URL is now optional since it can be provided at the resource level
 
 	if !model.BasicAuth.IsNull() {
-		username := model.BasicAuth.Attributes()["username"]
+		username := model.BasicAuth.Attributes()[attrUsername]
 		if username.IsNull() {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("basic_auth").AtName("username"),
+				path.Root(attrBasicAuth).AtName(attrUsername),
 				"Unknown username for HTTP client",
 				"The provider cannot create the HTTP client as there is a null configuration value for the username. "+
 					detailMessage+"or use the PROVIDER_HTTP_USERNAME environment variable.",
 			)
 		}
 
-		password := model.BasicAuth.Attributes()["password"]
+		password := model.BasicAuth.Attributes()[attrPassword]
 		if password.IsNull() {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("basic_auth").AtName("password"),
+				path.Root(attrBasicAuth).AtName(attrPassword),
 				"Unknown password for HTTP client",
 				"The provider cannot create the HTTP client as there is a null configuration value for the password. "+
 					detailMessage+"or use the PROVIDER_HTTP_PASSWORD environment variable.",
@@ -181,11 +188,11 @@ func (it *HTTPProvider) Configure(
 	if !model.BasicAuth.IsNull() { // double-checking because it is optional
 		if username == "" {
 			//nolint:errcheck // it was checked before in the validation
-			username = model.BasicAuth.Attributes()["username"].(types.String).ValueString()
+			username = model.BasicAuth.Attributes()[attrUsername].(types.String).ValueString()
 		}
 		if password == "" {
 			//nolint:errcheck // it was checked before in the validation
-			password = model.BasicAuth.Attributes()["password"].(types.String).ValueString()
+			password = model.BasicAuth.Attributes()[attrPassword].(types.String).ValueString()
 		}
 	}
 

@@ -2,6 +2,13 @@ package builders
 
 import "github.com/hashicorp/terraform-plugin-go/tftypes"
 
+const (
+	attrBasicAuth = "basic_auth"
+	attrIgnoreTLS = "ignore_tls"
+	attrUsername  = "username"
+	attrPassword  = "password"
+)
+
 type ProviderTypeBuilder struct {
 	attributeTypes map[string]tftypes.Type
 }
@@ -18,15 +25,15 @@ func (b *ProviderTypeBuilder) WithURL() *ProviderTypeBuilder {
 }
 
 func (b *ProviderTypeBuilder) WithUsername() *ProviderTypeBuilder {
-	if basicAuth, ok := b.attributeTypes["basic_auth"]; ok {
+	if basicAuth, ok := b.attributeTypes[attrBasicAuth]; ok {
 		//nolint:errcheck // no need to check since it's covered by the test
 		basicAuthType := basicAuth.(tftypes.Object)
-		basicAuthType.AttributeTypes["username"] = tftypes.String
-		b.attributeTypes["basic_auth"] = basicAuthType
+		basicAuthType.AttributeTypes[attrUsername] = tftypes.String
+		b.attributeTypes[attrBasicAuth] = basicAuthType
 	} else {
-		b.attributeTypes["basic_auth"] = tftypes.Object{
+		b.attributeTypes[attrBasicAuth] = tftypes.Object{
 			AttributeTypes: map[string]tftypes.Type{
-				"username": tftypes.String,
+				attrUsername: tftypes.String,
 			},
 		}
 	}
@@ -34,15 +41,15 @@ func (b *ProviderTypeBuilder) WithUsername() *ProviderTypeBuilder {
 }
 
 func (b *ProviderTypeBuilder) WithPassword() *ProviderTypeBuilder {
-	if basicAuth, ok := b.attributeTypes["basic_auth"]; ok {
+	if basicAuth, ok := b.attributeTypes[attrBasicAuth]; ok {
 		//nolint:errcheck // no need to check since it's covered by the test
 		basicAuthType := basicAuth.(tftypes.Object)
-		basicAuthType.AttributeTypes["password"] = tftypes.String
-		b.attributeTypes["basic_auth"] = basicAuthType
+		basicAuthType.AttributeTypes[attrPassword] = tftypes.String
+		b.attributeTypes[attrBasicAuth] = basicAuthType
 	} else {
-		b.attributeTypes["basic_auth"] = tftypes.Object{
+		b.attributeTypes[attrBasicAuth] = tftypes.Object{
 			AttributeTypes: map[string]tftypes.Type{
-				"password": tftypes.String,
+				attrPassword: tftypes.String,
 			},
 		}
 	}
@@ -50,7 +57,7 @@ func (b *ProviderTypeBuilder) WithPassword() *ProviderTypeBuilder {
 }
 
 func (b *ProviderTypeBuilder) WithIgnoreTLS() *ProviderTypeBuilder {
-	b.attributeTypes["ignore_tls"] = tftypes.Bool
+	b.attributeTypes[attrIgnoreTLS] = tftypes.Bool
 	return b
 }
 

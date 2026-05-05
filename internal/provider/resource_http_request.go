@@ -187,19 +187,19 @@ func addResourceConfigAttributes(attrs map[string]schema.Attribute) {
 	attrs["base_url"] = helpers.StringAttribute(false,
 		"The base URL for this specific HTTP request. When specified, this overrides the provider-level URL "+
 			"configuration. This allows for different APIs to be used within the same configuration.")
-	attrs["basic_auth"] = schema.SingleNestedAttribute{
+	attrs[attrBasicAuth] = schema.SingleNestedAttribute{
 		Description: "Credentials for basic authentication for this specific request. " +
 			"When specified, this overrides the provider-level basic authentication configuration.",
 		MarkdownDescription: "Credentials for basic authentication for this specific request. " +
 			"When specified, this overrides the provider-level basic authentication configuration.",
 		Optional: true,
 		Attributes: map[string]schema.Attribute{
-			"username": schema.StringAttribute{
+			attrUsername: schema.StringAttribute{
 				Description:         "The username for basic authentication.",
 				MarkdownDescription: "The username for basic authentication.",
 				Required:            true,
 			},
-			"password": schema.StringAttribute{
+			attrPassword: schema.StringAttribute{
 				Description:         "The password for basic authentication.",
 				MarkdownDescription: "The password for basic authentication.",
 				Required:            true,
@@ -207,7 +207,7 @@ func addResourceConfigAttributes(attrs map[string]schema.Attribute) {
 			},
 		},
 	}
-	attrs["ignore_tls"] = helpers.BoolAttribute(false,
+	attrs[attrIgnoreTLS] = helpers.BoolAttribute(false,
 		"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
 			"When specified, this overrides the provider-level ignore_tls configuration.")
 }
@@ -939,11 +939,11 @@ func (it *HTTPRequestResource) buildRequest(
 	if !model.BasicAuth.IsNull() {
 		// Use resource-level basic auth
 		authAttrs := model.BasicAuth.Attributes()
-		username, ok := authAttrs["username"].(types.String)
+		username, ok := authAttrs[attrUsername].(types.String)
 		if !ok {
 			return nil, errors.New("failed to get username from basic_auth")
 		}
-		password, ok := authAttrs["password"].(types.String)
+		password, ok := authAttrs[attrPassword].(types.String)
 		if !ok {
 			return nil, errors.New("failed to get password from basic_auth")
 		}
@@ -1286,16 +1286,16 @@ func setBasicAuthField(
 ) {
 	if len(nativeModel.BasicAuth) > 0 {
 		basicAuthMap := make(map[string]attr.Value)
-		if username, ok := nativeModel.BasicAuth["username"]; ok {
-			basicAuthMap["username"] = types.StringValue(username)
+		if username, ok := nativeModel.BasicAuth[attrUsername]; ok {
+			basicAuthMap[attrUsername] = types.StringValue(username)
 		}
-		if password, ok := nativeModel.BasicAuth["password"]; ok {
-			basicAuthMap["password"] = types.StringValue(password)
+		if password, ok := nativeModel.BasicAuth[attrPassword]; ok {
+			basicAuthMap[attrPassword] = types.StringValue(password)
 		}
 		basicAuthObj, diags := types.ObjectValue(
 			map[string]attr.Type{
-				"username": types.StringType,
-				"password": types.StringType,
+				attrUsername: types.StringType,
+				attrPassword: types.StringType,
 			},
 			basicAuthMap,
 		)
@@ -1308,8 +1308,8 @@ func setBasicAuthField(
 		// Initialize as null object with correct type structure
 		basicAuthObj := types.ObjectNull(
 			map[string]attr.Type{
-				"username": types.StringType,
-				"password": types.StringType,
+				attrUsername: types.StringType,
+				attrPassword: types.StringType,
 			},
 		)
 		model.BasicAuth = basicAuthObj
