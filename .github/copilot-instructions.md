@@ -5,7 +5,7 @@ Always reference these instructions first and fall back to search or bash comman
 ## Working Effectively
 
 ### Prerequisites and Setup
-- Install Go 1.26.2 (as specified in `go.mod`)
+- Install Go 1.26.3 (as specified in `go.mod`)
 - Install Terraform 1.11+ (required for WriteOnly attributes introduced in v3.0.0)
 - Install make for build automation
 
