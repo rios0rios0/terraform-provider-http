@@ -17,10 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-05-08
+
 ### Changed
 
-- changed the Go version to `1.26.3`
 - changed the Go module dependencies to their latest versions
+- changed the Go version to `1.26.3`
 - extracted repeated string literals (`basic_auth`, `ignore_tls`, `username`, `password`) into package-level constants to satisfy `goconst` lint rule
 - updated `.github/copilot-instructions.md` and `CLAUDE.md` to reference Go `1.26.3` to match `go.mod`
 
