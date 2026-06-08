@@ -36,5 +36,5 @@ Terraform provider using the Plugin Framework (not the older SDK). Follows a DDD
 
 ## Requirements
 
-- Go 1.26.3+
+- Go 1.26.4+
 - Terraform 1.11+
