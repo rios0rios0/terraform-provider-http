@@ -20,6 +20,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 ### Changed
 
 - refreshed `CLAUDE.md` and `.github/copilot-instructions.md` to reference Go `1.26.4` to match `go.mod`
+- changed the Go module dependencies to their latest versions
 
 ## [3.1.8] - 2026-06-03
 
