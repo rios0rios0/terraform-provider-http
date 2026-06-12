@@ -785,6 +785,18 @@ func (it *HTTPRequestResource) UpgradeState(_ context.Context) map[int64]resourc
 					ResponseBody:         oldModel.ResponseBody,
 					ResponseBodyID:       oldModel.ResponseBodyID,
 					ResponseBodyJSON:     oldModel.ResponseBodyJSON,
+
+					// The delete-control attributes became WriteOnly in schema v1. They must be
+					// carried as TYPED nulls here -- leaving them as the struct's zero value gives
+					// DeleteHeaders an element-typeless types.Map{}, which makes the very next plan
+					// fail with "Value Conversion Error ... Path: delete_headers"
+					// (Map[!!! MISSING TYPE !!!] / Map[DynamicPseudoType]). WriteOnly values are
+					// never persisted, so null is the correct upgraded-state value.
+					IsDeleteEnabled:   types.BoolNull(),
+					DeleteMethod:      types.StringNull(),
+					DeletePath:        types.StringNull(),
+					DeleteHeaders:     types.MapNull(types.StringType),
+					DeleteRequestBody: types.StringNull(),
 				}
 
 				resp.Diagnostics.Append(resp.State.Set(ctx, newModel)...)
