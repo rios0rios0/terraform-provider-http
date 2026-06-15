@@ -17,6 +17,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Changed
+
+- changed the Go module dependencies to their latest versions
+
 ### Fixed
 
 - fixed `http_request` failing the first `plan` after a `2.x` state (schema `v0`) is upgraded to `3.x`, with `Error: Value Conversion Error ... Path: delete_headers` (`Map[!!! MISSING TYPE !!!]` / `tftypes.Map[tftypes.DynamicPseudoType]`). The schema `v0`->`v1` state upgrader rebuilt the model without the new WriteOnly delete-control attributes, so `delete_headers` took Go's zero-value `types.Map{}` (element-typeless) instead of a typed null. The upgrader now sets `is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers` (`types.MapNull(types.StringType)`), and `delete_request_body` to typed nulls. Affects every configuration that upgrades pre-`3.0.0` state — the resource was un-plannable on `3.0.0`-`3.1.9` until the state was recreated
