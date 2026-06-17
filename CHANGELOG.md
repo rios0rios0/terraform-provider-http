@@ -21,6 +21,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 - changed the Go module dependencies to their latest versions
 
+### Fixed
+
+- fixed `http_request` failing an in-place update with `Error: Provider produced inconsistent result after apply` when only a client-side attribute changed (for example `tolerated_status_codes`). `Update` unconditionally re-issued the request, but the computed response attributes (`id`, `response_code`, `response_body`, `response_body_id`, `response_body_json`) carry `UseStateForUnknown`, so the plan pinned them to their prior values while the re-issued request returned a different response — and for a non-idempotent method the request was repeated needlessly. The request is now re-issued only when an attribute that defines it actually changes (`method`, `path`, `headers`, `request_body`, `query_parameters`, `base_url`, `basic_auth`, `ignore_tls`); a change limited to response-interpretation attributes keeps the recorded response untouched. When the request does change, those computed attributes are planned as unknown so the freshly captured response is accepted — which also resolves the same inconsistency for legitimate `request_body` / `headers` / etc. edits
+
 ## [3.1.10] - 2026-06-15
 
 ### Changed

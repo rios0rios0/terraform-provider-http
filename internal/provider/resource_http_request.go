@@ -459,11 +459,47 @@ func (it *HTTPRequestResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
+	var planModel HTTPRequestResourceModel
+	var stateModel HTTPRequestResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planModel)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &stateModel)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Only re-issue the HTTP request when an attribute that defines the request actually
+	// changed. Response-interpretation attributes (tolerated_status_codes,
+	// response_body_id_filter, is_response_body_json) and ignore_changes do not alter the
+	// outgoing request, so changing one must not re-send it: re-sending would discard the
+	// recorded response and, for a non-idempotent method, repeat the side effect. In that
+	// case the plan already carries the captured response forward via UseStateForUnknown,
+	// so persist it unchanged instead of producing an inconsistent result after apply.
+	if !requestAttributesChanged(planModel, stateModel) {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &planModel)...)
+		return
+	}
+
 	it.Create(ctx, resource.CreateRequest{
 		Config:       req.Config,
 		Plan:         req.Plan,
 		ProviderMeta: req.ProviderMeta,
 	}, (*resource.CreateResponse)(resp))
+}
+
+// requestAttributesChanged reports whether any attribute that defines the outgoing HTTP
+// request differs between the plan and the prior state. Response-interpretation attributes
+// (tolerated_status_codes, response_body_id_filter, is_response_body_json), ignore_changes,
+// the computed response attributes, and the write-only destroy controls are intentionally
+// excluded -- changing any of them does not change the request that was sent.
+func requestAttributesChanged(plan, state HTTPRequestResourceModel) bool {
+	return !plan.Method.Equal(state.Method) ||
+		!plan.Path.Equal(state.Path) ||
+		!plan.Headers.Equal(state.Headers) ||
+		!plan.RequestBody.Equal(state.RequestBody) ||
+		!plan.QueryParameters.Equal(state.QueryParameters) ||
+		!plan.BaseURL.Equal(state.BaseURL) ||
+		!plan.BasicAuth.Equal(state.BasicAuth) ||
+		!plan.IgnoreTLS.Equal(state.IgnoreTLS)
 }
 
 func (it *HTTPRequestResource) ModifyPlan(
@@ -487,16 +523,33 @@ func (it *HTTPRequestResource) ModifyPlan(
 		return
 	}
 
+	// Honor ignore_changes first so the request-change check below reflects the effective
+	// plan (an ignored request attribute must not count as a change).
 	entries := parseIgnoreEntries(ctx, planModel.IgnoreChanges, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() || len(entries) == 0 {
-		return
-	}
-
-	if !applyIgnoreEntries(ctx, entries, &planModel, &stateModel, &resp.Diagnostics) {
-		return
-	}
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	if len(entries) > 0 {
+		if !applyIgnoreEntries(ctx, entries, &planModel, &stateModel, &resp.Diagnostics) {
+			return
+		}
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	// When a request-defining attribute changes, Update re-issues the request and the
+	// captured response changes with it. The computed attributes carry UseStateForUnknown,
+	// which would otherwise pin them to their stale values and fail apply with "Provider
+	// produced inconsistent result after apply"; mark them unknown so the freshly captured
+	// response is accepted. A change limited to client-side attributes leaves the recorded
+	// response untouched, so the pinned values stay correct.
+	if requestAttributesChanged(planModel, stateModel) {
+		planModel.ID = types.StringUnknown()
+		planModel.ResponseCode = types.Int32Unknown()
+		planModel.ResponseBody = types.StringUnknown()
+		planModel.ResponseBodyID = types.StringUnknown()
+		planModel.ResponseBodyJSON = types.MapUnknown(types.StringType)
 	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
