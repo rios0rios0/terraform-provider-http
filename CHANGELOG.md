@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-06-18
+
 ### Added
 
 - added regression tests for the in-place update re-issue behavior: a unit test asserting that only request-defining attribute changes trigger a re-issue, and integration tests (driven by a local endpoint that returns a fresh id per request) proving that a client-side-only change neither re-issues the request nor fails apply, that a genuine request change still re-issues consistently, and that write-only destroy controls enabled in the same apply as a client-side-only change are still honored on destroy
