@@ -17,13 +17,18 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added regression tests for the in-place update re-issue behavior: a unit test asserting that only request-defining attribute changes trigger a re-issue, and integration tests (driven by a local endpoint that returns a fresh id per request) proving that a client-side-only change neither re-issues the request nor fails apply, that a genuine request change still re-issues consistently, and that write-only destroy controls enabled in the same apply as a client-side-only change are still honored on destroy
+
 ### Changed
 
 - changed the Go module dependencies to their latest versions
 
 ### Fixed
 
-- fixed `http_request` failing an in-place update with `Error: Provider produced inconsistent result after apply` when only a client-side attribute changed (for example `tolerated_status_codes`). `Update` unconditionally re-issued the request, but the computed response attributes (`id`, `response_code`, `response_body`, `response_body_id`, `response_body_json`) carry `UseStateForUnknown`, so the plan pinned them to their prior values while the re-issued request returned a different response — and for a non-idempotent method the request was repeated needlessly. The request is now re-issued only when an attribute that defines it actually changes (`method`, `path`, `headers`, `request_body`, `query_parameters`, `base_url`, `basic_auth`, `ignore_tls`); a change limited to response-interpretation attributes keeps the recorded response untouched. When the request does change, those computed attributes are planned as unknown so the freshly captured response is accepted — which also resolves the same inconsistency for legitimate `request_body` / `headers` / etc. edits
+- fixed `http_request` failing an in-place update with `Error: Provider produced inconsistent result after apply` when only a client-side attribute changed (for example `tolerated_status_codes`). `Update` unconditionally re-issued the request, but the computed response attributes (`id`, `response_code`, `response_body`, `response_body_id`, `response_body_json`, `delete_resolved_path`) carry `UseStateForUnknown`, so the plan pinned them to their prior values while the re-issued request returned a different response — and for a non-idempotent method the request was repeated needlessly. The request is now re-issued only when an attribute that defines it actually changes (`method`, `path`, `headers`, `request_body`, `query_parameters`, `base_url`, `basic_auth`, `ignore_tls`); a change limited to response-interpretation attributes keeps the recorded response untouched. When the request does change, those computed attributes (including `delete_resolved_path`) are planned as unknown so the freshly captured response is accepted — which also resolves the same inconsistency for legitimate `request_body` / `headers` / etc. edits
+- fixed `terraform destroy` not honoring write-only destroy controls (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`) that were changed in the same apply as a client-side-only update. Because those attributes are read only from configuration and persisted in opaque private state, the short-circuiting update path now refreshes them into private state just like a full create/update, so a later destroy uses the current delete configuration instead of the stale one
 
 ## [3.1.10] - 2026-06-15
 

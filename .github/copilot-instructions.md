@@ -80,7 +80,7 @@ resource "http_request" "test_request" {
   - `provider.go` -- provider configuration and setup
   - `resource_http_request.go` -- main HTTP request resource
   - `ignore_changes_helper.go` -- `ignore_changes` feature implementation
-  - `*_test.go` -- comprehensive test files with unit and integration tests (including `resource_http_request_ignore_test.go`)
+  - `*_test.go` -- comprehensive test files with unit and integration tests (including `resource_http_request_ignore_test.go` and the update re-issue regression tests in `resource_http_request_reissue_test.go` / `resource_http_request_reissue_integration_test.go`)
 - `internal/domain/entities/` -- domain entities and business logic (`Configuration`, `InternalContext`)
 - `internal/infrastructure/helpers/` -- HTTP, mapper, and resource helper utilities
 - `internal/infrastructure/validators/` -- custom validators (e.g. `StringNotEmpty`)
