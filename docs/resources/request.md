@@ -242,7 +242,9 @@ resource "http_request" "idempotent_post" {
 - `is_response_body_json` (Boolean) A boolean flag indicating whether the response body is expected to be in JSON format.
 - `query_parameters` (Map of String) Optional query parameters to append to the request path
 - `request_body` (String) The body content to be sent with the HTTP request. This is typically used for POST and PUT requests.
+- `request_timeout_ms` (Number) The per-request timeout in milliseconds for this specific HTTP request. When specified, this overrides the provider-level request_timeout_ms. When unset or 0, no timeout is applied and a request can wait indefinitely.
 - `response_body_id_filter` (String) A JSONPath filter used to extract a specific ID from the JSON response body. This is useful for identifying unique elements within the response.
+- `retry` (Block, Optional) Retry configuration for this specific HTTP request. When specified, this overrides the provider-level retry configuration. By default there are no retries. (see [below for nested schema](#nestedblock--retry))
 - `tolerated_status_codes` (Set of Number) HTTP status codes that should be treated as successful in addition to the default 2xx range. For example, setting this to `[404]` allows the resource to succeed when the server returns a `404 Not Found`.
 
 ### Read-Only
@@ -261,6 +263,16 @@ Required:
 
 - `password` (String, Sensitive) The password for basic authentication.
 - `username` (String) The username for basic authentication.
+
+
+<a id="nestedblock--retry"></a>
+### Nested Schema for `retry`
+
+Optional:
+
+- `attempts` (Number) The maximum number of retries. For example, if `2` is specified, the request is tried a maximum of 3 times (the initial attempt plus 2 retries).
+- `max_delay_ms` (Number) The maximum delay between retries, in milliseconds. Defaults to `30000`.
+- `min_delay_ms` (Number) The minimum delay between retries, in milliseconds. Defaults to `1000`.
 
 ## Import
 

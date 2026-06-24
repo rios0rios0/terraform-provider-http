@@ -16,6 +16,14 @@ func basicAuthAttrTypes() map[string]attr.Type {
 	}
 }
 
+func retryAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"attempts":     types.Int64Type,
+		"min_delay_ms": types.Int64Type,
+		"max_delay_ms": types.Int64Type,
+	}
+}
+
 // baselineReissueModel returns a fully-populated model used as the prior state in
 // the RequestAttributesChanged tests. Each test copies it and mutates a single
 // attribute, so the predicate is exercised one attribute at a time.
@@ -153,6 +161,16 @@ func TestRequestAttributesChanged(t *testing.T) {
 			},
 			"delete_resolved_path": func(m *provider.HTTPRequestResourceModel) {
 				m.DeleteResolvedPath = types.StringValue("/things/2")
+			},
+			"request_timeout_ms": func(m *provider.HTTPRequestResourceModel) {
+				m.RequestTimeoutMs = types.Int64Value(60000)
+			},
+			"retry": func(m *provider.HTTPRequestResourceModel) {
+				m.Retry = types.ObjectValueMust(retryAttrTypes(), map[string]attr.Value{
+					"attempts":     types.Int64Value(5),
+					"min_delay_ms": types.Int64Null(),
+					"max_delay_ms": types.Int64Null(),
+				})
 			},
 		}
 

@@ -16,10 +16,28 @@ import (
 )
 
 const (
-	attrBasicAuth = "basic_auth"
-	attrIgnoreTLS = "ignore_tls"
-	attrUsername  = "username"
-	attrPassword  = "password"
+	attrBasicAuth        = "basic_auth"
+	attrIgnoreTLS        = "ignore_tls"
+	attrUsername         = "username"
+	attrPassword         = "password"
+	attrRequestTimeoutMs = "request_timeout_ms"
+	attrRetry            = "retry"
+	attrAttempts         = "attempts"
+	attrMinDelayMs       = "min_delay_ms"
+	attrMaxDelayMs       = "max_delay_ms"
+)
+
+// Descriptions for the retry/timeout knobs. They are shared between the provider
+// and the resource schema builders (same package) so the wording lives in one
+// place and the two schemas cannot drift apart.
+const (
+	descRetryAttempts = "The maximum number of retries. For example, if `2` is specified, the request is " +
+		"tried a maximum of 3 times (the initial attempt plus 2 retries)."
+	descRetryMinDelayMs          = "The minimum delay between retries, in milliseconds. Defaults to `1000`."
+	descRetryMaxDelayMs          = "The maximum delay between retries, in milliseconds. Defaults to `30000`."
+	descRequestTimeoutMsProvider = "The per-request timeout in milliseconds applied to every HTTP request " +
+		"made by this provider. When unset or `0`, no timeout is applied and a request can wait indefinitely. " +
+		"It can be overridden per resource using the `request_timeout_ms` argument."
 )
 
 // Ensure HTTPProvider satisfies various provider interfaces.
@@ -35,9 +53,11 @@ type HTTPProvider struct {
 
 // HTTPProviderModel describes the provider data model.
 type HTTPProviderModel struct {
-	URL       types.String `tfsdk:"url"        json:"url"`
-	BasicAuth types.Object `tfsdk:"basic_auth" json:"basic_auth"`
-	IgnoreTLS types.Bool   `tfsdk:"ignore_tls" json:"-"`
+	URL              types.String `tfsdk:"url"                json:"url"`
+	BasicAuth        types.Object `tfsdk:"basic_auth"         json:"basic_auth"`
+	IgnoreTLS        types.Bool   `tfsdk:"ignore_tls"         json:"-"`
+	RequestTimeoutMs types.Int64  `tfsdk:"request_timeout_ms" json:"-"`
+	Retry            types.Object `tfsdk:"retry"              json:"-"`
 }
 
 func New(version string) func() provider.Provider {
@@ -102,6 +122,40 @@ func GetHTTPProviderSchema() schema.Schema {
 					"It is optional and defaults to `false`.",
 				Optional: true,
 			},
+			attrRequestTimeoutMs: providerOptionalInt64(descRequestTimeoutMsProvider),
+		},
+		Blocks: map[string]schema.Block{
+			attrRetry: retryBlock(),
+		},
+	}
+}
+
+// providerOptionalInt64 builds an optional provider-level Int64 attribute,
+// keeping `Description` and `MarkdownDescription` in sync.
+func providerOptionalInt64(description string) schema.Int64Attribute {
+	return schema.Int64Attribute{
+		Description:         description,
+		MarkdownDescription: description,
+		Optional:            true,
+	}
+}
+
+// retryBlock returns the provider-level `retry` block. It mirrors the upstream
+// hashicorp/http provider's retry semantics: retries are attempted on connection
+// errors and on 5xx (except 501) responses, with an exponential backoff bounded
+// by `min_delay_ms` and `max_delay_ms`. Configured here it applies to every
+// request; it can be overridden per resource.
+func retryBlock() schema.SingleNestedBlock {
+	description := "Retry configuration applied to every HTTP request made by this provider. " +
+		"By default there are no retries. Retries are attempted on connection errors and on 5xx " +
+		"(except 501) responses. It can be overridden per resource using the `retry` block."
+	return schema.SingleNestedBlock{
+		Description:         description,
+		MarkdownDescription: description,
+		Attributes: map[string]schema.Attribute{
+			attrAttempts:   providerOptionalInt64(descRetryAttempts),
+			attrMinDelayMs: providerOptionalInt64(descRetryMinDelayMs),
+			attrMaxDelayMs: providerOptionalInt64(descRetryMaxDelayMs),
 		},
 	}
 }
@@ -219,6 +273,10 @@ func (it *HTTPProvider) Configure(
 			Password: password,
 		}
 	}
+	if !model.RequestTimeoutMs.IsNull() && !model.RequestTimeoutMs.IsUnknown() {
+		internal.Config.RequestTimeoutMs = model.RequestTimeoutMs.ValueInt64()
+	}
+	internal.Config.Retry = retryConfigFromObject(model.Retry)
 
 	resp.ResourceData = internal
 	resp.DataSourceData = internal

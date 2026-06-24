@@ -17,8 +17,13 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added a `request_timeout_ms` argument and a `retry` block (`attempts`, `min_delay_ms`, `max_delay_ms`) to both the provider and the `http_request` resource, mirroring the upstream `hashicorp/http` provider. Configured at the provider level they apply to every request; the matching resource-level arguments override them. `request_timeout_ms` bounds each individual attempt -- an unset or `0` value preserves the previous behavior of waiting indefinitely -- and retries are attempted on connection errors and on 5xx (except 501) responses using an exponential backoff bounded by `min_delay_ms` and `max_delay_ms`. This addresses requests hanging indefinitely against a slow or unreachable endpoint, since the underlying HTTP client previously set no timeout and performed no retries
+
 ### Changed
 
+- promoted `github.com/hashicorp/go-retryablehttp` to a direct dependency, used to implement the new request `retry` support
 - changed the Go module dependencies to their latest versions
 
 ## [3.2.2] - 2026-06-24

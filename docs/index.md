@@ -38,6 +38,8 @@ provider "http" {
 
 - `basic_auth` (Attributes) Credentials for basic authentication. This attribute allows you to specify the username and password required for basic HTTP authentication. It is optional and should be used when the target Web endpoint requires basic authentication for access. (see [below for nested schema](#nestedatt--basic_auth))
 - `ignore_tls` (Boolean) A boolean flag to indicate whether TLS certificate verification should be ignored. This is useful for testing purposes or when interacting with APIs that use self-signed certificates. It is optional and defaults to `false`.
+- `request_timeout_ms` (Number) The per-request timeout in milliseconds applied to every HTTP request made by this provider. When unset or `0`, no timeout is applied and a request can wait indefinitely. It can be overridden per resource using the `request_timeout_ms` argument.
+- `retry` (Block, Optional) Retry configuration applied to every HTTP request made by this provider. By default there are no retries. Retries are attempted on connection errors and on 5xx (except 501) responses. It can be overridden per resource using the `retry` block. (see [below for nested schema](#nestedblock--retry))
 - `url` (String) The base URL for all HTTP requests made by this provider. This URL serves as the root endpoint for the Web endpoint that the provider will interact with. This is optional when base_url is specified at the resource level.
 
 <a id="nestedatt--basic_auth"></a>
@@ -47,3 +49,13 @@ Required:
 
 - `password` (String, Sensitive) The password for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used. The password is marked as sensitive to ensure it is not exposed in logs or state files.
 - `username` (String) The username for basic authentication. This is a required field within the `basic_auth` block and must be provided if basic authentication is used.
+
+
+<a id="nestedblock--retry"></a>
+### Nested Schema for `retry`
+
+Optional:
+
+- `attempts` (Number) The maximum number of retries. For example, if `2` is specified, the request is tried a maximum of 3 times (the initial attempt plus 2 retries).
+- `max_delay_ms` (Number) The maximum delay between retries, in milliseconds. Defaults to `30000`.
+- `min_delay_ms` (Number) The minimum delay between retries, in milliseconds. Defaults to `1000`.

@@ -105,6 +105,22 @@ func BoolAttributeNoReplace(required bool, description string) schema.BoolAttrib
 	return attribute
 }
 
+// Int64AttributeNoReplace creates an optional/required int64 attribute that does NOT trigger
+// replacement on change. Use this for operational tuning knobs (timeout, retry) that only
+// affect how a request is transported, not the request that is sent.
+func Int64AttributeNoReplace(required bool, description string) schema.Int64Attribute {
+	attribute := schema.Int64Attribute{
+		Description:         description,
+		MarkdownDescription: description,
+	}
+	if required {
+		attribute.Required = true
+	} else {
+		attribute.Optional = true
+	}
+	return attribute
+}
+
 func StringAttributeWriteOnly(required bool, description string) schema.StringAttribute {
 	attribute := schema.StringAttribute{
 		Description:         description,

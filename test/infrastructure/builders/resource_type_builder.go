@@ -52,6 +52,16 @@ func (b *ResourceTypeBuilder) WithQueryParameters() *ResourceTypeBuilder {
 	return b
 }
 
+func (b *ResourceTypeBuilder) WithRequestTimeoutMs() *ResourceTypeBuilder {
+	b.attributeTypes[attrRequestTimeoutMs] = tftypes.Number
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithRetry() *ResourceTypeBuilder {
+	b.attributeTypes[attrRetry] = retryObjectType()
+	return b
+}
+
 func (b *ResourceTypeBuilder) WithIsDeleteEnabled() *ResourceTypeBuilder {
 	b.attributeTypes["is_delete_enabled"] = tftypes.Bool
 	return b

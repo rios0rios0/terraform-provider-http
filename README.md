@@ -54,6 +54,39 @@ output "response_body" {
 }
 ```
 
+### Timeouts and retries
+
+Both the provider and the `http_request` resource accept a `request_timeout_ms` argument and a
+`retry` block. Set on the provider they apply to every request; set on a resource they override
+the provider defaults. This prevents a request from hanging indefinitely against a slow or
+unreachable endpoint and transparently retries transient failures (connection errors and 5xx
+responses, except 501) using an exponential backoff:
+
+```hcl
+provider "http" {
+  url                = "https://api.example.com"
+  request_timeout_ms = 60000 # give up on any request that exceeds 60s
+
+  retry {
+    attempts     = 5     # up to 5 retries (6 attempts in total)
+    min_delay_ms = 1000  # optional, defaults to 1000
+    max_delay_ms = 30000 # optional, defaults to 30000
+  }
+}
+
+resource "http_request" "example" {
+  method = "POST"
+  path   = "/data"
+
+  # Override the provider defaults for this request only.
+  request_timeout_ms = 10000
+
+  retry {
+    attempts = 2
+  }
+}
+```
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

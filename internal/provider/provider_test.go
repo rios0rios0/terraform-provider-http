@@ -38,6 +38,32 @@ func testAccPreCheck(_ *testing.T) {
 	// function.
 }
 
+// fullProviderType returns the complete provider object type used by the
+// ValidateConfig tests, keeping the (otherwise duplicated) builder chain in one place.
+func fullProviderType() tftypes.Object {
+	return builders.NewProviderTypeBuilder().
+		WithURL().
+		WithIgnoreTLS().
+		WithUsername().
+		WithPassword().
+		WithRequestTimeoutMs().
+		WithRetry().
+		Build()
+}
+
+// nullRetryValue returns a null `retry` nested-block value matching the schema,
+// used to satisfy the full provider object type in ValidateConfig tests.
+func nullRetryValue() tftypes.Value {
+	return tftypes.NewValue(
+		tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+			"attempts":     tftypes.Number,
+			"min_delay_ms": tftypes.Number,
+			"max_delay_ms": tftypes.Number,
+		}},
+		nil,
+	)
+}
+
 func TestHTTPProvider(t *testing.T) {
 	t.Parallel()
 
@@ -113,12 +139,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewProviderTypeBuilder().
-						WithURL().
-						WithIgnoreTLS().
-						WithUsername().
-						WithPassword().
-						Build(),
+					fullProviderType(),
 					map[string]tftypes.Value{
 						"url": tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
 						"basic_auth": tftypes.NewValue(
@@ -130,7 +151,9 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 							},
 							nil,
 						),
-						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
+						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
+						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
+						"retry":              nullRetryValue(),
 					},
 				),
 				Schema: GetHTTPProviderSchema(),
@@ -154,12 +177,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewProviderTypeBuilder().
-						WithURL().
-						WithIgnoreTLS().
-						WithUsername().
-						WithPassword().
-						Build(),
+					fullProviderType(),
 					map[string]tftypes.Value{
 						"url": tftypes.NewValue(tftypes.String, nil),
 						"basic_auth": tftypes.NewValue(
@@ -171,7 +189,9 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 							},
 							nil,
 						),
-						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
+						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
+						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
+						"retry":              nullRetryValue(),
 					},
 				),
 				Schema: GetHTTPProviderSchema(),
@@ -225,12 +245,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewProviderTypeBuilder().
-						WithURL().
-						WithIgnoreTLS().
-						WithUsername().
-						WithPassword().
-						Build(),
+					fullProviderType(),
 					map[string]tftypes.Value{
 						"url": tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
 						"basic_auth": tftypes.NewValue(
@@ -245,7 +260,9 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 								"password": tftypes.NewValue(tftypes.String, "pass"),
 							},
 						),
-						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
+						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
+						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
+						"retry":              nullRetryValue(),
 					},
 				),
 				Schema: GetHTTPProviderSchema(),
@@ -269,12 +286,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		req := provider.ValidateConfigRequest{
 			Config: tfsdk.Config{
 				Raw: tftypes.NewValue(
-					builders.NewProviderTypeBuilder().
-						WithURL().
-						WithIgnoreTLS().
-						WithUsername().
-						WithPassword().
-						Build(),
+					fullProviderType(),
 					map[string]tftypes.Value{
 						"url": tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
 						"basic_auth": tftypes.NewValue(
@@ -289,7 +301,9 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 								"password": tftypes.NewValue(tftypes.String, nil),
 							},
 						),
-						"ignore_tls": tftypes.NewValue(tftypes.Bool, nil),
+						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
+						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
+						"retry":              nullRetryValue(),
 					},
 				),
 				Schema: GetHTTPProviderSchema(),
