@@ -98,6 +98,7 @@ resource "http_request" "test_request" {
 - Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`, `delete_resolved_path`). Since v3.0.0 these are WriteOnly attributes (not persisted in state; stored in provider private state)
 - `tolerated_status_codes` attribute to treat specific non-2xx HTTP status codes as successful
 - `ignore_changes` attribute to suppress diffs for specific resource attributes during updates
+- `request_timeout_ms` argument and a `retry` block (`attempts`, `min_delay_ms`, `max_delay_ms`) at both provider and resource level, mirroring the upstream `hashicorp/http` provider. The timeout bounds each attempt (0/unset = no timeout); retries cover connection errors and 5xx (except 501) with exponential backoff. Implemented in `getHTTPClient` via `github.com/hashicorp/go-retryablehttp`
 - Resource-level configuration (`base_url`, `basic_auth`, `ignore_tls`) to support `count`/`for_each` with different APIs
 - State importing via Base64-encoded JSON (`terraform import`)
 

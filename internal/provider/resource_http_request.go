@@ -16,8 +16,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -73,9 +75,11 @@ type HTTPRequestResourceModel struct {
 	IgnoreChanges        types.Set    `tfsdk:"ignore_changes"`
 
 	// resource-level configuration (alternative to provider-level)
-	BaseURL   types.String `tfsdk:"base_url"`
-	BasicAuth types.Object `tfsdk:"basic_auth"`
-	IgnoreTLS types.Bool   `tfsdk:"ignore_tls"`
+	BaseURL          types.String `tfsdk:"base_url"`
+	BasicAuth        types.Object `tfsdk:"basic_auth"`
+	IgnoreTLS        types.Bool   `tfsdk:"ignore_tls"`
+	RequestTimeoutMs types.Int64  `tfsdk:"request_timeout_ms"`
+	Retry            types.Object `tfsdk:"retry"`
 
 	// destroy controls
 	IsDeleteEnabled    types.Bool   `tfsdk:"is_delete_enabled"`
@@ -107,9 +111,11 @@ type HTTPRequestResourceModelNative struct {
 	IgnoreChanges        []string          `json:"ignore_changes,omitempty"`
 
 	// resource-level configuration (alternative to provider-level)
-	BaseURL   string            `json:"base_url,omitempty"`
-	BasicAuth map[string]string `json:"basic_auth,omitempty"`
-	IgnoreTLS bool              `json:"ignore_tls,omitempty"`
+	BaseURL          string            `json:"base_url,omitempty"`
+	BasicAuth        map[string]string `json:"basic_auth,omitempty"`
+	IgnoreTLS        bool              `json:"ignore_tls,omitempty"`
+	RequestTimeoutMs *int64            `json:"request_timeout_ms,omitempty"`
+	Retry            *retryNative      `json:"retry,omitempty"`
 
 	// destroy controls
 	IsDeleteEnabled   bool              `json:"is_delete_enabled,omitempty"`
@@ -125,6 +131,89 @@ type HTTPRequestResourceModelNative struct {
 	ResponseBodyJSON map[string]string `json:"response_body_json,omitempty"`
 }
 
+// retryNative is the native (JSON) representation of the `retry` block, used by
+// the Base64 import payload.
+type retryNative struct {
+	Attempts   *int64 `json:"attempts,omitempty"`
+	MinDelayMs *int64 `json:"min_delay_ms,omitempty"`
+	MaxDelayMs *int64 `json:"max_delay_ms,omitempty"`
+}
+
+// Default retry delays, matching the upstream hashicorp/http provider behavior.
+const (
+	defaultRetryMinDelayMs int64 = 1000
+	defaultRetryMaxDelayMs int64 = 30000
+)
+
+// retryObjectAttrTypes returns the attribute types of the `retry` nested object.
+// It MUST be used wherever a typed null `retry` value is produced, otherwise the
+// framework raises a "missing type" conversion error.
+func retryObjectAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		attrAttempts:   types.Int64Type,
+		attrMinDelayMs: types.Int64Type,
+		attrMaxDelayMs: types.Int64Type,
+	}
+}
+
+// retryConfigFromObject converts a `retry` nested object into the domain
+// RetryConfig, applying the default delays for any unset sub-attribute. It
+// returns nil when the object is null/unknown (meaning "no retries").
+func retryConfigFromObject(obj types.Object) *entities.RetryConfig {
+	if obj.IsNull() || obj.IsUnknown() {
+		return nil
+	}
+
+	cfg := &entities.RetryConfig{
+		MinDelayMs: defaultRetryMinDelayMs,
+		MaxDelayMs: defaultRetryMaxDelayMs,
+	}
+	attrs := obj.Attributes()
+	if v, ok := attrs[attrAttempts].(types.Int64); ok && !v.IsNull() && !v.IsUnknown() {
+		cfg.Attempts = v.ValueInt64()
+	}
+	if v, ok := attrs[attrMinDelayMs].(types.Int64); ok && !v.IsNull() && !v.IsUnknown() {
+		cfg.MinDelayMs = v.ValueInt64()
+	}
+	if v, ok := attrs[attrMaxDelayMs].(types.Int64); ok && !v.IsNull() && !v.IsUnknown() {
+		cfg.MaxDelayMs = v.ValueInt64()
+	}
+
+	// Defensive clamping: keep delays sane regardless of user input.
+	if cfg.MinDelayMs < 0 {
+		cfg.MinDelayMs = 0
+	}
+	if cfg.MaxDelayMs < cfg.MinDelayMs {
+		cfg.MaxDelayMs = cfg.MinDelayMs
+	}
+	return cfg
+}
+
+func int64PtrToValue(p *int64) types.Int64 {
+	if p == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(*p)
+}
+
+// retryObjectFromNative reconstructs a typed `retry` object from the native
+// import payload, returning a typed null when no retry data is present.
+func retryObjectFromNative(rn *retryNative, diagnostics *diag.Diagnostics) types.Object {
+	if rn == nil {
+		return types.ObjectNull(retryObjectAttrTypes())
+	}
+	obj, diags := types.ObjectValue(retryObjectAttrTypes(), map[string]attr.Value{
+		attrAttempts:   int64PtrToValue(rn.Attempts),
+		attrMinDelayMs: int64PtrToValue(rn.MinDelayMs),
+		attrMaxDelayMs: int64PtrToValue(rn.MaxDelayMs),
+	})
+	if diags.HasError() {
+		diagnostics.Append(diags...)
+		return types.ObjectNull(retryObjectAttrTypes())
+	}
+	return obj
+}
+
 func NewHTTPRequestResource() resource.Resource {
 	return &HTTPRequestResource{}
 }
@@ -133,6 +222,7 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 	attrs := make(map[string]schema.Attribute)
 	addRequestAttributes(attrs)
 	addResourceConfigAttributes(attrs)
+	addRetryTimeoutAttributes(attrs)
 	addDeleteControlAttributes(attrs)
 	addStateAttributes(attrs)
 
@@ -143,6 +233,37 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 		MarkdownDescription: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
 		Attributes: attrs,
+		Blocks: map[string]schema.Block{
+			attrRetry: resourceRetryBlock(),
+		},
+	}
+}
+
+// addRetryTimeoutAttributes adds the operational `request_timeout_ms` knob. It is
+// intentionally NOT part of addResourceConfigAttributes so the v0 upgrade schema
+// (which reuses that function) keeps its pre-existing shape.
+func addRetryTimeoutAttributes(attrs map[string]schema.Attribute) {
+	attrs[attrRequestTimeoutMs] = helpers.Int64AttributeNoReplace(false,
+		"The per-request timeout in milliseconds for this specific HTTP request. When specified, "+
+			"this overrides the provider-level request_timeout_ms. When unset or 0, no timeout is applied "+
+			"and a request can wait indefinitely.")
+}
+
+// resourceRetryBlock returns the resource-level `retry` block. When set it
+// overrides the provider-level retry configuration. Retries are attempted on
+// connection errors and on 5xx (except 501) responses, with an exponential
+// backoff bounded by min_delay_ms and max_delay_ms.
+func resourceRetryBlock() schema.SingleNestedBlock {
+	description := "Retry configuration for this specific HTTP request. When specified, this overrides " +
+		"the provider-level retry configuration. By default there are no retries."
+	return schema.SingleNestedBlock{
+		Description:         description,
+		MarkdownDescription: description,
+		Attributes: map[string]schema.Attribute{
+			attrAttempts:   helpers.Int64AttributeNoReplace(false, descRetryAttempts),
+			attrMinDelayMs: helpers.Int64AttributeNoReplace(false, descRetryMinDelayMs),
+			attrMaxDelayMs: helpers.Int64AttributeNoReplace(false, descRetryMaxDelayMs),
+		},
 	}
 }
 
@@ -852,11 +973,17 @@ func (it *HTTPRequestResource) UpgradeState(_ context.Context) map[int64]resourc
 					BasicAuth:            oldModel.BasicAuth,
 					IgnoreTLS:            oldModel.IgnoreTLS,
 					DeleteResolvedPath:   oldModel.DeleteResolvedPath,
-					ID:                   oldModel.ID,
-					ResponseCode:         oldModel.ResponseCode,
-					ResponseBody:         oldModel.ResponseBody,
-					ResponseBodyID:       oldModel.ResponseBodyID,
-					ResponseBodyJSON:     oldModel.ResponseBodyJSON,
+
+					// request_timeout_ms and retry are new in this schema version; carry them as
+					// typed nulls so the very next plan does not fail with a "missing type"
+					// conversion error (mirrors the delete_* WriteOnly fix in 3.1.10).
+					RequestTimeoutMs: types.Int64Null(),
+					Retry:            types.ObjectNull(retryObjectAttrTypes()),
+					ID:               oldModel.ID,
+					ResponseCode:     oldModel.ResponseCode,
+					ResponseBody:     oldModel.ResponseBody,
+					ResponseBodyID:   oldModel.ResponseBodyID,
+					ResponseBodyJSON: oldModel.ResponseBodyJSON,
 
 					// The delete-control attributes became WriteOnly in schema v1. They must be
 					// carried as TYPED nulls here -- leaving them as the struct's zero value gives
@@ -1359,6 +1486,11 @@ func setResourceLevelFields(
 		model.IgnoreTLS = types.BoolValue(nativeModel.IgnoreTLS)
 	}
 
+	// Operational tuning knobs (optional). retry must always be a typed object so
+	// the imported state is plannable; a typed null is used when absent.
+	model.RequestTimeoutMs = int64PtrToValue(nativeModel.RequestTimeoutMs)
+	model.Retry = retryObjectFromNative(nativeModel.Retry, diagnostics)
+
 	// Handle BasicAuth object - must always be initialized with correct type
 	setBasicAuthField(model, nativeModel, diagnostics)
 }
@@ -1551,52 +1683,104 @@ func (it *HTTPRequestResource) buildFullURL(
 	return finalURL, diags
 }
 
-// getHTTPClient returns the HTTP client to use for this request,
-// taking into account resource-level TLS configuration.
+// getHTTPClient returns the HTTP client to use for this request. It resolves the
+// effective TLS, timeout, and retry settings -- resource-level values take
+// precedence over the provider-level configuration -- and builds a client
+// accordingly. When retries are configured the returned client transparently
+// retries on connection errors and 5xx (except 501) responses, applying an
+// exponential backoff bounded by the configured min/max delays. The per-request
+// timeout (when set) bounds each individual attempt; an unset/zero timeout
+// preserves the historical behavior of waiting indefinitely.
 func (it *HTTPRequestResource) getHTTPClient(
 	_ context.Context,
 	model HTTPRequestResourceModel,
 ) *http.Client {
-	// Check if resource-level ignore_tls setting should override provider-level
-	var ignoreTLS bool
-	switch {
-	case !model.IgnoreTLS.IsNull():
-		ignoreTLS = model.IgnoreTLS.ValueBool()
-	case it.internal.Client.Transport != nil:
-		// Fall back to provider-level setting (default is false if not set)
-		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
-			ignoreTLS = transport.TLSClientConfig.InsecureSkipVerify
-		}
-	}
+	ignoreTLS := it.resolveIgnoreTLS(model)
+	timeout := it.resolveTimeout(model)
+	retryCfg := it.resolveRetry(model)
 
-	// If resource-level setting matches what's already configured, reuse the client
-	currentIgnoreTLS := false
-	if it.internal.Client.Transport != nil {
-		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok {
-			if transport.TLSClientConfig != nil {
-				currentIgnoreTLS = transport.TLSClientConfig.InsecureSkipVerify
-			}
-		}
-	}
-
-	if ignoreTLS == currentIgnoreTLS {
-		return it.internal.Client
-	}
-
-	// Create a new client with the desired TLS configuration
-	client := &http.Client{}
+	base := &http.Client{Timeout: timeout}
 	if ignoreTLS {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS13,
-				// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled
-				// This is a user-controlled feature for testing and self-signed certificates
-				//nolint:gosec // purposefully ignore TLS verification according to user configuration
-				InsecureSkipVerify: true,
-			},
-		}
-		client.Transport = transport
+		base.Transport = it.resolveInsecureTransport()
 	}
 
-	return client
+	if retryCfg == nil || retryCfg.Attempts <= 0 {
+		return base
+	}
+
+	retryClient := retryablehttp.NewClient()
+	retryClient.HTTPClient = base
+	// Silence the library's default stderr logger; diagnostics flow through tflog.
+	retryClient.Logger = nil
+	retryClient.RetryMax = int(retryCfg.Attempts)
+	retryClient.RetryWaitMin = time.Duration(retryCfg.MinDelayMs) * time.Millisecond
+	retryClient.RetryWaitMax = time.Duration(retryCfg.MaxDelayMs) * time.Millisecond
+	return retryClient.StandardClient()
+}
+
+// resolveIgnoreTLS resolves the effective ignore_tls setting: a resource-level
+// value wins; otherwise the provider-level value (detected from the configured
+// client transport) is used.
+func (it *HTTPRequestResource) resolveIgnoreTLS(model HTTPRequestResourceModel) bool {
+	if !model.IgnoreTLS.IsNull() {
+		return model.IgnoreTLS.ValueBool()
+	}
+	if it.internal != nil && it.internal.Client != nil && it.internal.Client.Transport != nil {
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok && transport.TLSClientConfig != nil {
+			return transport.TLSClientConfig.InsecureSkipVerify
+		}
+	}
+	return false
+}
+
+// resolveInsecureTransport returns a transport that skips TLS verification. It
+// reuses the provider-level transport when one is already configured so the
+// underlying connection pool is shared across requests; a fresh transport is
+// allocated only when there is none to reuse (for example, a resource-level
+// ignore_tls override turning verification off where the provider left it on).
+func (it *HTTPRequestResource) resolveInsecureTransport() http.RoundTripper {
+	if it.internal != nil && it.internal.Client != nil {
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok &&
+			transport.TLSClientConfig != nil && transport.TLSClientConfig.InsecureSkipVerify {
+			return transport
+		}
+	}
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+			// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled.
+			// This is a user-controlled feature for testing and self-signed certificates.
+			//nolint:gosec // purposefully ignore TLS verification according to user configuration
+			InsecureSkipVerify: true,
+		},
+	}
+}
+
+// resolveTimeout resolves the effective per-request timeout: a resource-level
+// value wins; otherwise the provider-level value is used. A non-positive value
+// means no timeout.
+func (it *HTTPRequestResource) resolveTimeout(model HTTPRequestResourceModel) time.Duration {
+	var ms int64
+	if it.internal != nil && it.internal.Config != nil {
+		ms = it.internal.Config.RequestTimeoutMs
+	}
+	if !model.RequestTimeoutMs.IsNull() && !model.RequestTimeoutMs.IsUnknown() {
+		ms = model.RequestTimeoutMs.ValueInt64()
+	}
+	if ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+// resolveRetry resolves the effective retry configuration: a resource-level
+// `retry` block wins; otherwise the provider-level configuration is used.
+func (it *HTTPRequestResource) resolveRetry(model HTTPRequestResourceModel) *entities.RetryConfig {
+	if !model.Retry.IsNull() && !model.Retry.IsUnknown() {
+		return retryConfigFromObject(model.Retry)
+	}
+	if it.internal != nil && it.internal.Config != nil {
+		return it.internal.Config.Retry
+	}
+	return nil
 }
