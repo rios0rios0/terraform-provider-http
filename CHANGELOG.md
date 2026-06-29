@@ -26,6 +26,10 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 - promoted `github.com/hashicorp/go-retryablehttp` to a direct dependency, used to implement the new request `retry` support
 - changed the Go module dependencies to their latest versions
 
+### Fixed
+
+- preserved connection-pool reuse when `ignore_tls` is enabled at the provider level: the request client now reuses the provider's existing `http.Transport` instead of allocating a fresh one per request, avoiding goroutine and file-descriptor churn across repeated requests
+
 ## [3.2.2] - 2026-06-24
 
 ### Changed

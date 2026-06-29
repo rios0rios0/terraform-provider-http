@@ -1701,15 +1701,7 @@ func (it *HTTPRequestResource) getHTTPClient(
 
 	base := &http.Client{Timeout: timeout}
 	if ignoreTLS {
-		base.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS13,
-				// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled.
-				// This is a user-controlled feature for testing and self-signed certificates.
-				//nolint:gosec // purposefully ignore TLS verification according to user configuration
-				InsecureSkipVerify: true,
-			},
-		}
+		base.Transport = it.resolveInsecureTransport()
 	}
 
 	if retryCfg == nil || retryCfg.Attempts <= 0 {
@@ -1739,6 +1731,29 @@ func (it *HTTPRequestResource) resolveIgnoreTLS(model HTTPRequestResourceModel) 
 		}
 	}
 	return false
+}
+
+// resolveInsecureTransport returns a transport that skips TLS verification. It
+// reuses the provider-level transport when one is already configured so the
+// underlying connection pool is shared across requests; a fresh transport is
+// allocated only when there is none to reuse (for example, a resource-level
+// ignore_tls override turning verification off where the provider left it on).
+func (it *HTTPRequestResource) resolveInsecureTransport() http.RoundTripper {
+	if it.internal != nil && it.internal.Client != nil {
+		if transport, ok := it.internal.Client.Transport.(*http.Transport); ok &&
+			transport.TLSClientConfig != nil && transport.TLSClientConfig.InsecureSkipVerify {
+			return transport
+		}
+	}
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+			// InsecureSkipVerify is intentionally set to true when ignore_tls is enabled.
+			// This is a user-controlled feature for testing and self-signed certificates.
+			//nolint:gosec // purposefully ignore TLS verification according to user configuration
+			InsecureSkipVerify: true,
+		},
+	}
 }
 
 // resolveTimeout resolves the effective per-request timeout: a resource-level

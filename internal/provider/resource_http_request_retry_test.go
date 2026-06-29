@@ -14,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
 )
 
 func retryObject(attempts, minDelayMs, maxDelayMs types.Int64) types.Object {
@@ -208,5 +210,54 @@ func TestGetHTTPClientTimeout(t *testing.T) {
 		// then
 		assert.Equal(t, time.Duration(0), client.Timeout,
 			"an unset timeout preserves the historical no-timeout behavior")
+	})
+}
+
+func TestGetHTTPClientTransportReuse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should reuse the provider transport when ignore_tls is set at the provider level", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a provider configured with ignore_tls owns an insecure transport
+		internal := entities.NewInternalContext(true, entities.NewConfiguration(""))
+		providerTransport := internal.Client.Transport
+		require.NotNil(t, providerTransport, "the provider should own a transport when ignore_tls is enabled")
+		it := &HTTPRequestResource{internal: internal}
+		model := HTTPRequestResourceModel{
+			IgnoreTLS:        types.BoolNull(),
+			RequestTimeoutMs: types.Int64Null(),
+			Retry:            types.ObjectNull(retryObjectAttrTypes()),
+		}
+
+		// when
+		client := it.getHTTPClient(context.Background(), model)
+
+		// then
+		assert.Same(t, providerTransport, client.Transport,
+			"the provider transport must be reused so the connection pool is shared across requests")
+	})
+
+	t.Run("should allocate a fresh transport when a resource overrides ignore_tls from false to true", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a provider that verifies TLS has no insecure transport to reuse
+		internal := entities.NewInternalContext(false, entities.NewConfiguration(""))
+		it := &HTTPRequestResource{internal: internal}
+		model := HTTPRequestResourceModel{
+			IgnoreTLS:        types.BoolValue(true),
+			RequestTimeoutMs: types.Int64Null(),
+			Retry:            types.ObjectNull(retryObjectAttrTypes()),
+		}
+
+		// when
+		client := it.getHTTPClient(context.Background(), model)
+
+		// then
+		transport, ok := client.Transport.(*http.Transport)
+		require.True(t, ok, "a fresh *http.Transport must be created for the resource-level override")
+		require.NotNil(t, transport.TLSClientConfig)
+		assert.True(t, transport.TLSClientConfig.InsecureSkipVerify,
+			"the new transport must skip verification per the resource override")
 	})
 }
