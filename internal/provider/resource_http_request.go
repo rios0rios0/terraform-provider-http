@@ -46,6 +46,14 @@ var (
 
 const AmountOfPartsInID = 2
 
+// Schema versions of the http_request resource. Version 2 is shape-identical to version 1; the
+// bump exists so a state upgrader can rewrite captured numbers that version 1 recorded in
+// scientific notation.
+const (
+	schemaVersionV1 = 1
+	schemaVersionV2 = 2
+)
+
 const deleteParamsPrivateKey = "delete_params"
 
 type deleteParamsPrivate struct {
@@ -227,11 +235,31 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 	addStateAttributes(attrs)
 
 	return schema.Schema{
-		Version: 1,
+		Version: schemaVersionV2,
 		Description: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
 		MarkdownDescription: "Represents an HTTP request resource, allowing configuration of various " +
 			"HTTP request parameters and capturing the response details.",
+		Attributes: attrs,
+		Blocks: map[string]schema.Block{
+			attrRetry: resourceRetryBlock(),
+		},
+	}
+}
+
+// getHTTPRequestResourceSchemaV1 returns the schema as it stood in version 1. Version 2 is
+// shape-identical -- the bump exists only so the upgrader below can rewrite captured numbers
+// that version 1 recorded in scientific notation -- so the same attribute builders are reused.
+func getHTTPRequestResourceSchemaV1() schema.Schema {
+	attrs := make(map[string]schema.Attribute)
+	addRequestAttributes(attrs)
+	addResourceConfigAttributes(attrs)
+	addRetryTimeoutAttributes(attrs)
+	addDeleteControlAttributes(attrs)
+	addStateAttributes(attrs)
+
+	return schema.Schema{
+		Version:    schemaVersionV1,
 		Attributes: attrs,
 		Blocks: map[string]schema.Block{
 			attrRetry: resourceRetryBlock(),
@@ -949,6 +977,8 @@ func (it *HTTPRequestResource) UpgradeState(_ context.Context) map[int64]resourc
 		Attributes: v0Attrs,
 	}
 
+	v1Schema := getHTTPRequestResourceSchemaV1()
+
 	return map[int64]resource.StateUpgrader{
 		0: {
 			PriorSchema: &v0Schema,
@@ -1001,6 +1031,109 @@ func (it *HTTPRequestResource) UpgradeState(_ context.Context) map[int64]resourc
 				resp.Diagnostics.Append(resp.State.Set(ctx, newModel)...)
 			},
 		},
+		1: {
+			PriorSchema: &v1Schema,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var model HTTPRequestResourceModel
+				resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				repairExponentNotation(ctx, &model, &resp.Diagnostics)
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
+			},
+		},
+	}
+}
+
+// RepairExponentNotation applies the schema v1 -> v2 captured-number repair to a model
+// (exported for testing).
+func RepairExponentNotation(
+	ctx context.Context,
+	model *HTTPRequestResourceModel,
+	diagnostics *diag.Diagnostics,
+) {
+	repairExponentNotation(ctx, model, diagnostics)
+}
+
+// repairExponentNotation rewrites the captured attributes that schema version 1 rendered with
+// the `%v` verb. Applied to the float64 that `encoding/json` produces for every JSON number,
+// `%v` formats with `%g` and switches to scientific notation once the exponent grows, so a
+// nine-digit identifier such as 803554429 was recorded as "8.03554429e+08".
+//
+// Three attributes carried the damage: `response_body_id`, `delete_resolved_path` (the id is
+// substituted into the path, and Destroy prefers the stored value over re-resolving it, so a
+// corrupted path makes the resource undeletable) and the `response_body_json` map.
+//
+// The repair is driven by the resource's own recorded `response_body`: every number in it is
+// rendered both the old way and the new way, and only those exact renderings are substituted.
+// Nothing is guessed, and a response body that no longer parses leaves the state untouched.
+func repairExponentNotation(
+	ctx context.Context,
+	model *HTTPRequestResourceModel,
+	diagnostics *diag.Diagnostics,
+) {
+	if model.ResponseBody.IsNull() || model.ResponseBody.ValueString() == "" {
+		return
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(model.ResponseBody.ValueString()), &decoded); err != nil {
+		return
+	}
+
+	replacements := make(map[string]string)
+	collectExponentRenderings(decoded, replacements)
+	if len(replacements) == 0 {
+		return
+	}
+
+	// The id is a single scalar rendering, so require an exact match rather than a substring
+	// one -- that cannot corrupt an id that merely contains a number as a substring.
+	if !model.ResponseBodyID.IsNull() {
+		if repaired, found := replacements[model.ResponseBodyID.ValueString()]; found {
+			model.ResponseBodyID = types.StringValue(repaired)
+		}
+	}
+
+	// The resolved path embeds the rendering inside a larger string, so substitute in place.
+	if !model.DeleteResolvedPath.IsNull() {
+		repaired := model.DeleteResolvedPath.ValueString()
+		for old, updated := range replacements {
+			repaired = strings.ReplaceAll(repaired, old, updated)
+		}
+		model.DeleteResolvedPath = types.StringValue(repaired)
+	}
+
+	// The map is derived wholesale from the response body, so simply rebuild it.
+	if model.IsResponseBodyJSON.ValueBool() {
+		rebuilt, diags := types.MapValueFrom(ctx, types.StringType, helpers.ConvertToStringMap(decoded))
+		diagnostics.Append(diags...)
+		if !diags.HasError() {
+			model.ResponseBodyJSON = rebuilt
+		}
+	}
+}
+
+// collectExponentRenderings walks a decoded JSON document and records, for every number whose
+// rendering changed between schema versions, the old rendering mapped to the new one.
+func collectExponentRenderings(value any, replacements map[string]string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, nested := range typed {
+			collectExponentRenderings(nested, replacements)
+		}
+	case []any:
+		for _, nested := range typed {
+			collectExponentRenderings(nested, replacements)
+		}
+	default:
+		previous := fmt.Sprintf("%v", value)
+		if current := helpers.FormatJSONScalar(value); current != previous {
+			replacements[previous] = current
+		}
 	}
 }
 
@@ -1251,7 +1384,7 @@ func updateResponseBodyID(
 
 	element := jsonPath.First(jsonResponse)
 	if element != nil {
-		model.ResponseBodyID = types.StringValue(fmt.Sprintf("%v", element))
+		model.ResponseBodyID = types.StringValue(helpers.FormatJSONScalar(element))
 	} else {
 		diagnostics.AddWarning("The JSON path provided didn't return any value...",
 			"Please check the `response_body_id_filter` provided.")
@@ -1337,7 +1470,7 @@ func resolveDeletePathTokens(rawPath, responseBody string, diagnostics *diag.Dia
 				fmt.Sprintf("token: %q did not resolve against create response", token))
 			return "", false
 		}
-		repl := fmt.Sprintf("%v", val)
+		repl := helpers.FormatJSONScalar(val)
 		resolved = strings.ReplaceAll(resolved, token, repl)
 	}
 
