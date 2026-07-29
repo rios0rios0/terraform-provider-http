@@ -17,6 +17,18 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed `response_body_id`, `delete_resolved_path` and `response_body_json` recording whole JSON
+  numbers in scientific notation (an id of `803554429` became `8.03554429e+08`), which broke every
+  consumer that interpolated the value back into a request -- most visibly `delete_path`, leaving
+  affected resources impossible to destroy. Whole numbers within the exactly-representable float64
+  range are now rendered positionally; fractional numbers, booleans, strings and JSON null keep
+  their previous rendering
+- fixed already-written state carrying the notation above: the resource schema moves to version 2
+  and a state upgrader rewrites the three attributes in place, driven by the numbers in each
+  resource's own recorded `response_body` so nothing is guessed
+
 ## [3.3.8] - 2026-07-28
 
 ### Changed
