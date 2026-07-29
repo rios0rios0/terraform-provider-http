@@ -1099,10 +1099,16 @@ func repairExponentNotation(
 	}
 
 	// The resolved path embeds the rendering inside a larger string, so substitute in place.
+	// One rendering can be a substring of another -- "1e+08" sits inside "1.1e+08" -- and Go
+	// randomises map iteration, so substituting the shorter one first would turn
+	// "/posts/1.1e+08" into "/posts/1.100000000" on some runs and not others. Applying the
+	// longest rendering first removes both the corruption and the non-determinism. Every
+	// replacement value is digits only while every rendering carries an exponent, so a
+	// substitution can never produce text that a later rendering matches.
 	if !model.DeleteResolvedPath.IsNull() {
 		repaired := model.DeleteResolvedPath.ValueString()
-		for old, updated := range replacements {
-			repaired = strings.ReplaceAll(repaired, old, updated)
+		for _, rendering := range renderingsLongestFirst(replacements) {
+			repaired = strings.ReplaceAll(repaired, rendering, replacements[rendering])
 		}
 		model.DeleteResolvedPath = types.StringValue(repaired)
 	}
@@ -1115,6 +1121,24 @@ func repairExponentNotation(
 			model.ResponseBodyJSON = rebuilt
 		}
 	}
+}
+
+// renderingsLongestFirst returns the old renderings ordered longest first, ties broken
+// lexicographically so the sequence is stable across runs.
+func renderingsLongestFirst(replacements map[string]string) []string {
+	renderings := make([]string, 0, len(replacements))
+	for rendering := range replacements {
+		renderings = append(renderings, rendering)
+	}
+
+	slices.SortFunc(renderings, func(left, right string) int {
+		if byLength := len(right) - len(left); byLength != 0 {
+			return byLength
+		}
+		return strings.Compare(left, right)
+	})
+
+	return renderings
 }
 
 // collectExponentRenderings walks a decoded JSON document and records, for every number whose

@@ -167,6 +167,28 @@ func TestRepairExponentNotation(t *testing.T) {
 		assert.Equal(t, "803554429", model.ResponseBodyID.ValueString())
 	})
 
+	t.Run("should substitute the longest rendering first when one is a substring of another", func(t *testing.T) {
+		t.Parallel()
+
+		// given
+		// "1e+08" (from 100000000) is a substring of "1.1e+08" (from 110000000), so
+		// substituting the shorter rendering first would yield "/posts/1.100000000".
+		// Go randomises map iteration, so an unordered loop fails this only sometimes.
+		model := baselineUpgradeModel()
+		model.ResponseBody = types.StringValue(`{"id":110000000,"sibling":100000000}`)
+		model.ResponseBodyID = types.StringValue("1.1e+08")
+		model.DeleteResolvedPath = types.StringValue("/posts/1.1e+08")
+		var diagnostics diag.Diagnostics
+
+		// when
+		provider.RepairExponentNotation(context.Background(), &model, &diagnostics)
+
+		// then
+		assert.False(t, diagnostics.HasError())
+		assert.Equal(t, "/posts/110000000", model.DeleteResolvedPath.ValueString())
+		assert.Equal(t, "110000000", model.ResponseBodyID.ValueString())
+	})
+
 	t.Run("should rewrite an id carried inside a response body array", func(t *testing.T) {
 		t.Parallel()
 
