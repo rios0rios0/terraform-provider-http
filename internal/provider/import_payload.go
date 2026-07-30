@@ -484,11 +484,21 @@ func isSafeHTTPMethod(method string) bool {
 // It emits the `<uuid>/<base64>` form with URL-safe, unpadded base64, which is the only spelling
 // that never contains a `/` and so cannot be mistaken for the separator.
 //
-// `basic_auth` is deliberately never encoded. The identifier is stored in plain state and is meant
-// to be copied into shells and CI logs, so putting credentials in it would leak them; the
-// configuration supplies them on import instead. The write-only destroy controls are absent for
-// the same reason they are absent from state, and `response_body_id` / `response_body_json` are
-// left out because both are derived from `response_body`.
+// Only the arguments a configuration can set are encoded. Three groups are deliberately left out:
+//
+//   - `basic_auth`, because the identifier lives in plain state and is meant to be copied into
+//     shells and CI logs, where a credential would leak. The configuration supplies it on import.
+//   - the captured response (`response_code`, `response_body`, and the `response_body_id` /
+//     `response_body_json` derived from it). A response body is frequently the most sensitive
+//     thing the resource ever holds -- creation endpoints routinely return tokens and personal
+//     data -- and it is already in state under its own attribute, so embedding a base64 copy would
+//     both leak it into logs and inflate the state by a third of its size for nothing. A re-import
+//     captures it live instead, which is also the only way to get a *current* one.
+//   - the write-only destroy controls, for the same reason they are absent from state.
+//
+// Re-reading is only automatic for the safe methods, so for anything else the resolved refresh
+// path is carried as `import_read_path` when one is configured -- a plain URL, not response data,
+// and one already visible in state as `delete_resolved_path`.
 func buildImportID(
 	ctx context.Context,
 	model HTTPRequestResourceModel,
@@ -510,8 +520,7 @@ func buildImportID(
 		Retry:                retryNativeFromObject(model.Retry),
 		IsRefreshEnabled:     boolValueToPtr(model.IsRefreshEnabled),
 		RefreshPath:          model.RefreshPath.ValueString(),
-		ResponseCode:         int32ValueToPtr(model.ResponseCode),
-		ResponseBody:         model.ResponseBody.ValueString(),
+		ImportReadPath:       importReadPathForIdentifier(model),
 	}
 
 	if diagnostics.HasError() {
@@ -531,6 +540,34 @@ func buildImportID(
 	return types.StringValue(
 		model.ID.ValueString() + importPathSigil + base64.RawURLEncoding.EncodeToString(encoded),
 	)
+}
+
+// importReadPathForIdentifier returns the path a re-import should read to recapture the response,
+// or an empty string when there is none to offer.
+//
+// Only a resource created with an unsafe method needs it: a safe one is re-read automatically. The
+// configured `refresh_path` is resolved against the captured body here, while that body is still at
+// hand, so the identifier carries a concrete URL rather than the JSONPath tokens a fresh import
+// would have nothing to resolve against.
+func importReadPathForIdentifier(model HTTPRequestResourceModel) string {
+	if isSafeHTTPMethod(model.Method.ValueString()) || !isNonEmptyString(model.RefreshPath) {
+		return ""
+	}
+
+	// Failure here is not worth surfacing: the identifier is a convenience, and an import without
+	// a read path still succeeds with a warning explaining how to supply one.
+	var ignored diag.Diagnostics
+
+	resolved, ok := resolveDeletePathTokens(
+		model.RefreshPath.ValueString(),
+		model.ResponseBody.ValueString(),
+		&ignored,
+	)
+	if !ok {
+		return ""
+	}
+
+	return resolved
 }
 
 // retryNativeFromObject converts the `retry` block back into its native representation.
@@ -601,17 +638,6 @@ func boolValueToPtr(value types.Bool) *bool {
 	}
 
 	converted := value.ValueBool()
-
-	return &converted
-}
-
-// int32ValueToPtr converts a framework int32 into an optional native int32.
-func int32ValueToPtr(value types.Int32) *int32 {
-	if value.IsNull() || value.IsUnknown() {
-		return nil
-	}
-
-	converted := value.ValueInt32()
 
 	return &converted
 }

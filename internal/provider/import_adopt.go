@@ -177,7 +177,7 @@ const (
 		"after an import that did not specify it, where the value is adopted from the configuration " +
 		"in place."
 	descAdoptReplaceMarkdown = "Changing this argument replaces the resource, except on the first " +
-		"plan after an `terraform import` that did not specify it, where the value is adopted from " +
+		"plan after a `terraform import` that did not specify it, where the value is adopted from " +
 		"the configuration in place."
 )
 

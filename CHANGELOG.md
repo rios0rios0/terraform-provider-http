@@ -33,9 +33,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
   required
 - added resource identity, so Terraform `1.12` and later can import with
   `import { identity = { method = ..., path = ... } }` instead of a stringly-typed identifier
-- added `import_id`, a computed attribute holding the identifier that re-imports the resource
-  exactly as it was applied. Credentials are never encoded into it; `basic_auth` is taken from the
-  configuration on import instead
+- added `import_id`, a computed attribute holding the identifier that re-imports the resource with
+  the arguments it was applied with. Neither `basic_auth` nor the captured response is encoded into
+  it: a response body is often the most sensitive thing the resource holds and is already in state
+  under its own attribute, so embedding a copy would leak it wherever the identifier is pasted and
+  inflate the state for nothing. A re-import captures a current response instead, and for a method
+  that cannot be replayed the resolved `refresh_path` travels as `import_read_path` so it still can
 - added a live read during import: for `GET` and `HEAD` the endpoint is read so `response_code`,
   `response_body`, `response_body_id`, `response_body_json` and `delete_resolved_path` are captured
   from the real API. `POST`, `PUT`, `PATCH` and `DELETE` are never replayed, because re-sending one

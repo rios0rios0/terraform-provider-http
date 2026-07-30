@@ -96,7 +96,8 @@ Only `method` and `path` are ever required. Terraform 1.5 `import` blocks and Te
 
 The provider also renders the identifier that re-imports a resource, as the computed `import_id`
 attribute. Capture it as an output so it survives the loss of the state file that would make it
-necessary -- it never contains credentials:
+necessary. It encodes only the arguments you configured -- neither `basic_auth` nor the captured
+response is in it, so it is safe to paste into a shell or a CI log:
 
 ```hcl
 output "example_import_id" {

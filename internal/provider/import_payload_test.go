@@ -248,8 +248,60 @@ func TestBuildImportID(t *testing.T) {
 		assert.Equal(t, original.Method, decoded.Method)
 		assert.Equal(t, original.Path, decoded.Path)
 		assert.Equal(t, original.RequestBody, decoded.RequestBody)
+		assert.Equal(t, original.IsResponseBodyJSON, decoded.IsResponseBodyJSON)
 		assert.Equal(t, original.ResponseBodyIDFilter, decoded.ResponseBodyIDFilter)
-		assert.Equal(t, original.ResponseCode, decoded.ResponseCode)
+	})
+
+	t.Run("should never encode the captured response", func(t *testing.T) {
+		t.Parallel()
+
+		// given
+		// A response body is often the most sensitive thing the resource holds, it is already in
+		// state under its own attribute, and a re-import captures a current one anyway.
+		var diagnostics diag.Diagnostics
+		model, _ := provider.DecodeImportIDForTest(
+			`{"method":"GET","path":"/posts/1","response_code":201,`+
+				`"response_body":"{\"token\":\"fixture-response-secret\"}"}`,
+			&diagnostics,
+		)
+		require.False(t, diagnostics.HasError(), diagnostics.Errors())
+		model.ID = types.StringValue("fixture-id")
+
+		// when
+		importID := provider.BuildImportIDForTest(t.Context(), *model, &diagnostics)
+
+		// then
+		require.False(t, diagnostics.HasError(), diagnostics.Errors())
+		decoded, err := base64.RawURLEncoding.DecodeString(importID.ValueString()[len("fixture-id/"):])
+		require.NoError(t, err)
+		assert.NotContains(t, string(decoded), "fixture-response-secret")
+		assert.NotContains(t, string(decoded), "response_body")
+		assert.NotContains(t, string(decoded), "response_code")
+	})
+
+	t.Run("should carry a resolved read path when the method cannot be replayed", func(t *testing.T) {
+		t.Parallel()
+
+		// given
+		// A safe method is re-read automatically on import; an unsafe one needs to be told where
+		// the object it created lives, and the JSONPath token can only be resolved here.
+		var diagnostics diag.Diagnostics
+		model, _ := provider.DecodeImportIDForTest(
+			`{"method":"POST","path":"/posts","is_refresh_enabled":true,`+
+				`"refresh_path":"/posts/$.id","response_body":"{\"id\":101}"}`,
+			&diagnostics,
+		)
+		require.False(t, diagnostics.HasError(), diagnostics.Errors())
+		model.ID = types.StringValue("fixture-id")
+
+		// when
+		importID := provider.BuildImportIDForTest(t.Context(), *model, &diagnostics)
+
+		// then
+		require.False(t, diagnostics.HasError(), diagnostics.Errors())
+		decoded, err := base64.RawURLEncoding.DecodeString(importID.ValueString()[len("fixture-id/"):])
+		require.NoError(t, err)
+		assert.Contains(t, string(decoded), `"import_read_path":"/posts/101"`)
 	})
 
 	t.Run("should never encode the basic_auth credentials", func(t *testing.T) {

@@ -230,7 +230,9 @@ resource "http_request" "watched" {
 # 12) Keep the identifier that re-imports a resource
 # `import_id` is rendered by the provider and is accepted verbatim by `terraform import`. Capturing
 # it as an output means it survives the loss of the state file that would make it necessary.
-# Credentials are never encoded into it: `basic_auth` is taken from the configuration on import.
+# It encodes only the arguments you configured: neither `basic_auth` nor the captured response is
+# in it, so it is safe to paste into a shell or a CI log. Because this resource sets `refresh_path`,
+# the identifier carries the resolved object URL so a re-import can read the response back.
 output "watched_import_id" {
   description = "Run: terraform import http_request.watched \"$(terraform output -raw watched_import_id)\""
   value       = http_request.watched.import_id

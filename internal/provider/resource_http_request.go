@@ -392,10 +392,11 @@ func addStateAttributes(attrs map[string]schema.Attribute) {
 // an output means the identifier survives the loss of the state file that would make it necessary.
 func addImportHelperAttributes(attrs map[string]schema.Attribute) {
 	attrs[attrImportID] = helpers.ComputedStringAttribute(
-		"A ready-made identifier for `terraform import`, describing this resource exactly as it " +
-			"was applied. Credentials are deliberately omitted: `basic_auth` is never encoded here " +
-			"and is taken from the configuration instead. Capture it with an `output` block so it " +
-			"remains available if the state is ever lost.")
+		"A ready-made identifier for `terraform import`, describing the arguments this resource " +
+			"was applied with. Neither `basic_auth` nor the captured response is encoded into it, " +
+			"so it is safe to paste into a shell or a CI log and it does not duplicate the response " +
+			"body into a second copy in state; a re-import captures a current response instead. " +
+			"Capture it with an `output` block so it remains available if the state is ever lost.")
 }
 
 func (it *HTTPRequestResource) Metadata(
@@ -656,7 +657,7 @@ func (it *HTTPRequestResource) acceptExchange(
 	diagnostics.AddError(
 		"Error performing HTTP request. Not expected status code...",
 		fmt.Sprintf(
-			"Response code: %s. Response responseBody: %s",
+			"Response code: %s. Response body: %s",
 			exchange.status,
 			string(exchange.body),
 		),

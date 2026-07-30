@@ -41,7 +41,9 @@ terraform import http_request.example4 '@./import-example4.json'
 
 # ---------------------------------------------------------------------------------------------
 # 5) The identifier the provider itself renders. Capture `import_id` as an output so it survives
-#    the loss of the state file that would make it necessary. It never contains credentials.
+#    the loss of the state file that would make it necessary. It encodes only the arguments you
+#    configured -- neither `basic_auth` nor the captured response is in it -- so it is safe to
+#    paste into a shell or a CI log.
 # ---------------------------------------------------------------------------------------------
 terraform import http_request.example5 "$(terraform output -raw example5_import_id)"
 

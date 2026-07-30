@@ -245,7 +245,9 @@ resource "http_request" "watched" {
 # 12) Keep the identifier that re-imports a resource
 # `import_id` is rendered by the provider and is accepted verbatim by `terraform import`. Capturing
 # it as an output means it survives the loss of the state file that would make it necessary.
-# Credentials are never encoded into it: `basic_auth` is taken from the configuration on import.
+# It encodes only the arguments you configured: neither `basic_auth` nor the captured response is
+# in it, so it is safe to paste into a shell or a CI log. Because this resource sets `refresh_path`,
+# the identifier carries the resolved object URL so a re-import can read the response back.
 output "watched_import_id" {
   description = "Run: terraform import http_request.watched \"$(terraform output -raw watched_import_id)\""
   value       = http_request.watched.import_id
@@ -286,7 +288,7 @@ output "watched_import_id" {
 
 - `delete_resolved_path` (String) The `delete_path` with JSONPath tokens resolved from the create response, when possible.
 - `id` (String) A unique identifier for the resource, generated when it is created. Use `import_id` to obtain the identifier accepted by `terraform import`.
-- `import_id` (String) A ready-made identifier for `terraform import`, describing this resource exactly as it was applied. Credentials are deliberately omitted: `basic_auth` is never encoded here and is taken from the configuration instead. Capture it with an `output` block so it remains available if the state is ever lost.
+- `import_id` (String) A ready-made identifier for `terraform import`, describing the arguments this resource was applied with. Neither `basic_auth` nor the captured response is encoded into it, so it is safe to paste into a shell or a CI log and it does not duplicate the response body into a second copy in state; a re-import captures a current response instead. Capture it with an `output` block so it remains available if the state is ever lost.
 - `response_body` (String) The raw body content returned by the server in response to the request.
 - `response_body_id` (String) The extracted ID from the JSON response body, based on the provided `response_body_id_filter`. This is only populated if `is_response_body_json` is true.
 - `response_body_json` (Map of String) The response body parsed as a Terraform map object. Nested items can be accessed using dot notation (e.g., "response_body_json["nested.item.value"]").
@@ -358,7 +360,9 @@ terraform import http_request.example4 '@./import-example4.json'
 
 # ---------------------------------------------------------------------------------------------
 # 5) The identifier the provider itself renders. Capture `import_id` as an output so it survives
-#    the loss of the state file that would make it necessary. It never contains credentials.
+#    the loss of the state file that would make it necessary. It encodes only the arguments you
+#    configured -- neither `basic_auth` nor the captured response is in it -- so it is safe to
+#    paste into a shell or a CI log.
 # ---------------------------------------------------------------------------------------------
 terraform import http_request.example5 "$(terraform output -raw example5_import_id)"
 
