@@ -29,7 +29,11 @@ Terraform provider using the Plugin Framework (not the older SDK). Follows a DDD
 ## Key Conventions
 
 - Always update `CHANGELOG.md` under `[Unreleased]` when making changes.
-- Delete-operation attributes (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`) are WriteOnly (Terraform 1.11+). They are not persisted in Terraform state; values are stored in provider private state. Schema version is 1.
+- Delete-operation attributes (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`) are WriteOnly (Terraform 1.11+). They are not persisted in Terraform state; values are stored in provider private state.
+- Refresh-control attributes (`is_refresh_enabled`, `refresh_path`) are ordinary state-stored arguments, **not** WriteOnly — the `Read` RPC receives no configuration, so a write-only value would be unavailable exactly when refresh needs it.
+- Schema version is 3. Upgraders are registered for versions 0, 1 and 2, and the framework hands every one of them a response state built from the *current* schema — so a new attribute must be added to **all** of them, as a TYPED null (`types.MapNull(types.StringType)`, not a zero value), or the next plan fails with `Value Conversion Error ... MISSING TYPE`.
+- Import must never cause a replacement. `ImportState` records the attributes an identifier left unspecified under the `import_adopt` private-state key; the conditional `RequiresReplaceIf` modifiers in `internal/provider/import_adopt.go` read that key and suppress replacement for exactly those attributes, and `Update` settles them from configuration without issuing a request, then clears the key. Attribute-level plan modifiers run *before* `ModifyPlan` and `resp.RequiresReplace` is only ever appended to, so `ModifyPlan` cannot undo a replacement — the private-state flag is the only lever.
+- Import identifier decoding lives in `internal/provider/import_payload.go`. Forms are dispatched on the first character so none can be read as another; `import_payload.go` also renders the `import_id` attribute, which deliberately omits `basic_auth`.
 - `Makefile` targets delegate to scripts in the external `rios0rios0/pipelines` repo (cloned to `~/Development/github.com/rios0rios0/pipelines`).
 - CI runs `rios0rios0/pipelines/.github/workflows/go-binary.yaml@main`. Releases use GoReleaser with GPG signing on `v*` tags.
 - Tests hit `jsonplaceholder.typicode.com` for integration testing. Acceptance tests need `TF_ACC_PROVIDER_NAMESPACE=rios0rios0`.

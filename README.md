@@ -22,8 +22,9 @@ This provider supports specifying the URL, method, and headers, and it captures 
 
 ## Requirements
 
-- [Go](https://golang.org/doc/install) >= 1.23.4
-- [Terraform](https://www.terraform.io/downloads.html) >= 1.10.4 (tested and approved)
+- [Go](https://golang.org/doc/install) >= 1.26.5
+- [Terraform](https://www.terraform.io/downloads.html) >= 1.11 (write-only attributes); >= 1.12 to
+  import with an `identity` block
 
 ## Installation
 
@@ -40,10 +41,17 @@ terraform {
 
 ## Usage
 
+The provider holds the base URL; each resource adds a `path`. A resource can override the base
+with its own `base_url`.
+
 ```hcl
+provider "http" {
+  url = "https://api.example.com"
+}
+
 resource "http_request" "example" {
-  url    = "https://api.example.com/data"
   method = "GET"
+  path   = "/data"
   headers = {
     "Authorization" = "Bearer ${var.token}"
   }
@@ -53,6 +61,80 @@ output "response_body" {
   value = http_request.example.response_body
 }
 ```
+
+### Import
+
+Importing an existing resource never destroys and recreates it.
+
+Terraform does not show your configuration to a provider during import, so an identifier that does
+not spell out every argument produces a state that differs from your HCL. Rather than let that
+difference land on the replacement rules, this provider records what the identifier left unsaid and
+adopts those values from your configuration on the first apply -- in place, without sending any HTTP
+request, and with a warning naming exactly what was adopted. You need neither `terraform state rm`
+nor a `lifecycle { ignore_changes }` block.
+
+Import with the shortest form that identifies the resource, then `terraform apply`:
+
+```bash
+terraform import http_request.example '/data'
+```
+
+Six identifier forms are accepted, each distinguished by its first character so none can be
+mistaken for another:
+
+| Form                | Example                                          |
+|---------------------|--------------------------------------------------|
+| bare path           | `/posts/1` (the method defaults to `GET`)        |
+| method and path     | `POST /posts`                                    |
+| raw JSON            | `{"method":"GET","path":"/posts/1"}`             |
+| JSON from a file    | `@./import.json`                                 |
+| `<id>/<base64>`     | `0b7f.../eyJtZXRob2Q...` (accepted for backwards compatibility) |
+| bare base64         | `eyJtZXRob2Q...`                                 |
+
+Only `method` and `path` are ever required. Terraform 1.5 `import` blocks and Terraform 1.12
+`import { identity = { method = ..., path = ... } }` blocks are both supported.
+
+The provider also renders the identifier that re-imports a resource, as the computed `import_id`
+attribute. Capture it as an output so it survives the loss of the state file that would make it
+necessary -- it never contains credentials:
+
+```hcl
+output "example_import_id" {
+  value = http_request.example.import_id
+}
+```
+
+For `GET` and `HEAD` the provider reads the endpoint during the import, so the captured response
+attributes are filled in from the live API. It never replays `POST`, `PUT`, `PATCH` or `DELETE`,
+because re-sending one would repeat its side effect; name the object to read with
+`import_read_path` in the payload instead. See [the resource documentation](docs/resources/request.md#import)
+for the full set of examples.
+
+### Drift detection
+
+`Read` leaves the captured response alone by default, which is what existing configurations rely
+on. Setting `is_refresh_enabled = true` makes every refresh re-read the resource and update the
+captured response, so changes made outside Terraform appear as a diff. Because a generic HTTP
+resource cannot know which endpoint reflects the object it created -- for a `POST` the creation path
+is the collection, not the object -- `refresh_path` names the object and supports the same inline
+JSONPath tokens as `delete_path`:
+
+```hcl
+resource "http_request" "watched" {
+  method = "POST"
+  path   = "/posts"
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+
+  is_refresh_enabled = true
+  refresh_path       = "/posts/$.id"
+}
+```
+
+A refresh whose response is neither successful nor listed in `tolerated_status_codes` removes the
+resource from state, so it is planned for creation again rather than left pointing at something
+that no longer exists.
 
 ### Timeouts and retries
 

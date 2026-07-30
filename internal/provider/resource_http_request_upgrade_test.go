@@ -209,7 +209,7 @@ func TestRepairExponentNotation(t *testing.T) {
 func TestGetHTTPRequestResourceSchemaVersion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should declare version 2 so the captured-number repair runs once", func(t *testing.T) {
+	t.Run("should declare version 3 so the refresh and import attributes are migrated once", func(t *testing.T) {
 		t.Parallel()
 
 		// given
@@ -219,6 +219,6 @@ func TestGetHTTPRequestResourceSchemaVersion(t *testing.T) {
 		result := provider.GetHTTPRequestResourceSchema()
 
 		// then
-		assert.Equal(t, int64(2), result.Version)
+		assert.Equal(t, int64(3), result.Version)
 	})
 }

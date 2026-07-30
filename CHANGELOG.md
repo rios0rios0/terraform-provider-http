@@ -17,6 +17,55 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+### Added
+
+- added import adoption, so importing a resource never destroys and recreates it. Terraform does
+  not show a configuration to a provider during import, so an identifier that omits arguments
+  produces a state that differs from the HCL, and that difference used to land on the
+  `RequiresReplace` rules. The provider now records what the identifier left unsaid and adopts
+  those values from the configuration on the first apply -- in place, without sending any HTTP
+  request, and with a warning naming exactly what was adopted. Neither `terraform state rm` nor a
+  `lifecycle` block is needed any more
+- added five import identifier formats alongside the existing `<id>/<base64>` pair: a bare path
+  (`/posts/1`, the method defaults to `GET`), a method and path (`POST /posts`), raw JSON, a JSON
+  file reference (`@./import.json`), and a bare base64 payload. Each is distinguished by its first
+  character, so no identifier can be read as two different forms. Only `method` and `path` are ever
+  required
+- added resource identity, so Terraform `1.12` and later can import with
+  `import { identity = { method = ..., path = ... } }` instead of a stringly-typed identifier
+- added `import_id`, a computed attribute holding the identifier that re-imports the resource
+  exactly as it was applied. Credentials are never encoded into it; `basic_auth` is taken from the
+  configuration on import instead
+- added a live read during import: for `GET` and `HEAD` the endpoint is read so `response_code`,
+  `response_body`, `response_body_id`, `response_body_json` and `delete_resolved_path` are captured
+  from the real API. `POST`, `PUT`, `PATCH` and `DELETE` are never replayed, because re-sending one
+  would repeat its side effect; the new `import_read_path` payload key names an object to `GET`
+  instead. This is what makes a `delete_path` carrying JSONPath tokens resolvable after an import
+- added opt-in drift detection through `is_refresh_enabled` and `refresh_path`, replacing the `Read`
+  method that had been a no-op. When enabled, every refresh re-reads the resource and updates the
+  captured response; a response that is neither successful nor tolerated removes the resource from
+  state so it is planned for creation again. It is off by default, so no existing configuration
+  changes behaviour
+
+### Changed
+
+- changed the resource schema to version `3` and added a `2` to `3` upgrader carrying the new
+  attributes as typed nulls, following the precedent set by the version `0` upgrader
+- changed the import identifier documentation and examples to emit URL-safe, unpadded base64, which
+  cannot contain the `/` separator
+
+### Fixed
+
+- fixed import rejecting any `<id>/<base64>` identifier whose payload contained a `/`. The standard
+  base64 alphabet includes that character, so a request path with a query string was enough to
+  produce one; the identifier was split into three parts and refused outright. The split is now
+  bounded to two segments, and standard, URL-safe, padded and unpadded base64 are all accepted
+- fixed imported state recording `is_response_body_json` as `false` when the identifier omitted it.
+  A configuration that also omits the argument leaves it null, so the two disagreed and the first
+  plan after an import destroyed and recreated the resource. Omitted arguments now stay null, and
+  an explicit `false` stays distinguishable from an absent one -- the same fix applies to
+  `ignore_tls`, `is_delete_enabled` and `response_code`
+
 ## [3.3.9] - 2026-07-30
 
 ### Changed

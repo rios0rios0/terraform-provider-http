@@ -57,16 +57,16 @@ type (
 // are NOT included here because they never trigger replacement (they only affect destroy behavior).
 func getSupportedIgnoreAttributes() map[string]IgnoreAttributeKind {
 	return map[string]IgnoreAttributeKind{
-		"method":                  IgnoreKindScalar,
-		"path":                    IgnoreKindScalar,
-		"headers":                 IgnoreKindMap,
-		"request_body":            IgnoreKindBody,
-		"query_parameters":        IgnoreKindMap,
-		"base_url":                IgnoreKindScalar,
-		attrBasicAuth:             IgnoreKindObject,
-		attrIgnoreTLS:             IgnoreKindScalar,
-		"is_response_body_json":   IgnoreKindScalar,
-		"response_body_id_filter": IgnoreKindScalar,
+		attrMethod:               IgnoreKindScalar,
+		attrPath:                 IgnoreKindScalar,
+		attrHeaders:              IgnoreKindMap,
+		attrRequestBody:          IgnoreKindBody,
+		attrQueryParameters:      IgnoreKindMap,
+		attrBaseURL:              IgnoreKindScalar,
+		attrBasicAuth:            IgnoreKindObject,
+		attrIgnoreTLS:            IgnoreKindScalar,
+		attrIsResponseBodyJSON:   IgnoreKindScalar,
+		attrResponseBodyIDFilter: IgnoreKindScalar,
 	}
 }
 
@@ -86,19 +86,19 @@ func getIgnoreAppliers() map[string]ignoreApplier {
 	basicAuthGetter := func(m *HTTPRequestResourceModel) *types.Object { return &m.BasicAuth }
 
 	return map[string]ignoreApplier{
-		"method": makeStringApplier(
+		attrMethod: makeStringApplier(
 			methodGetter,
 			methodGetter,
 		),
-		"path": makeStringApplier(
+		attrPath: makeStringApplier(
 			pathGetter,
 			pathGetter,
 		),
-		"base_url": makeStringApplier(
+		attrBaseURL: makeStringApplier(
 			baseURLGetter,
 			baseURLGetter,
 		),
-		"response_body_id_filter": makeStringApplier(
+		attrResponseBodyIDFilter: makeStringApplier(
 			responseBodyIDFilterGetter,
 			responseBodyIDFilterGetter,
 		),
@@ -106,19 +106,19 @@ func getIgnoreAppliers() map[string]ignoreApplier {
 			ignoreTLSGetter,
 			ignoreTLSGetter,
 		),
-		"is_response_body_json": makeBoolApplier(
+		attrIsResponseBodyJSON: makeBoolApplier(
 			isResponseBodyJSONGetter,
 			isResponseBodyJSONGetter,
 		),
-		"headers": makeMapApplier(
+		attrHeaders: makeMapApplier(
 			headersGetter,
 			headersGetter,
 		),
-		"query_parameters": makeMapApplier(
+		attrQueryParameters: makeMapApplier(
 			queryParametersGetter,
 			queryParametersGetter,
 		),
-		"request_body": makeBodyApplier(
+		attrRequestBody: makeBodyApplier(
 			requestBodyGetter,
 			requestBodyGetter,
 		),

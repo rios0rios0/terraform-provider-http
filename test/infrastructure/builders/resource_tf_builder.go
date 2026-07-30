@@ -115,6 +115,16 @@ func (b *ResourceTFBuilder) WithDeleteRequestBody(deleteRequestBody string) *Res
 	return b
 }
 
+func (b *ResourceTFBuilder) WithIsRefreshEnabled(isRefreshEnabled bool) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("is_refresh_enabled = %t\n", isRefreshEnabled)
+	return b
+}
+
+func (b *ResourceTFBuilder) WithRefreshPath(refreshPath string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("refresh_path = \"%s\"\n", refreshPath)
+	return b
+}
+
 func (b *ResourceTFBuilder) WithToleratedStatusCodes(codes []int) *ResourceTFBuilder {
 	if len(codes) == 0 {
 		return b
