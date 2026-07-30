@@ -100,11 +100,14 @@ resource "http_request" "test_request" {
 - `ignore_changes` attribute to suppress diffs for specific resource attributes during updates
 - `request_timeout_ms` argument and a `retry` block (`attempts`, `min_delay_ms`, `max_delay_ms`) at both provider and resource level, mirroring the upstream `hashicorp/http` provider. The timeout bounds each attempt (0/unset = no timeout); retries cover connection errors and 5xx (except 501) with exponential backoff. Implemented in `getHTTPClient` via `github.com/hashicorp/go-retryablehttp`
 - Resource-level configuration (`base_url`, `basic_auth`, `ignore_tls`) to support `count`/`for_each` with different APIs
-- State importing via Base64-encoded JSON (`terraform import`)
+- State importing (`terraform import`) accepting six identifier forms, each distinguished by its first character: a bare path (`/posts/1`), a method and path (`POST /posts`), raw JSON, a JSON file reference (`@./import.json`), the legacy `<id>/<base64>` pair, and a bare base64 payload. Only `method` and `path` are required. Terraform 1.12 `import { identity = { ... } }` blocks are supported via `ResourceWithIdentity`. Decoding lives in `internal/provider/import_payload.go`
+- Import adoption: an identifier that omits arguments records them in the `import_adopt` private-state key, and the conditional `RequiresReplaceIf` modifiers in `internal/provider/import_adopt.go` suppress replacement for exactly those attributes until the first apply settles them from configuration without issuing a request. This is what keeps an import from destroying and recreating the resource
+- `import_id`, a computed attribute holding the identifier that re-imports the resource. `basic_auth` is deliberately never encoded into it
+- Opt-in drift detection via `is_refresh_enabled` and `refresh_path`; `Read` is a no-op unless it is enabled
 
 ### Version and Configuration
 - Version is auto-detected from the latest git tag via `ldflags` at build time (defaults to `dev` when no tag is present). See `VERSION` in `Makefile`.
-- Schema version: 1 (upgraded from 0 in v3.0.0; state upgrade runs automatically)
+- Schema version: 3 (upgraders registered for 0, 1 and 2; they all write into the *current* schema, so a new attribute must be added to every one of them as a TYPED null). State upgrade runs automatically
 - Provider address: `registry.terraform.io/rios0rios0/http`
 - Local testing address: `hashicorp-local.com/rios0rios0/http`
 

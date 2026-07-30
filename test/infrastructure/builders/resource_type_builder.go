@@ -92,8 +92,23 @@ func (b *ResourceTypeBuilder) WithDeleteResolvedPath() *ResourceTypeBuilder {
 	return b
 }
 
+func (b *ResourceTypeBuilder) WithIsRefreshEnabled() *ResourceTypeBuilder {
+	b.attributeTypes["is_refresh_enabled"] = tftypes.Bool
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithRefreshPath() *ResourceTypeBuilder {
+	b.attributeTypes["refresh_path"] = tftypes.String
+	return b
+}
+
 func (b *ResourceTypeBuilder) WithID() *ResourceTypeBuilder {
 	b.attributeTypes["id"] = tftypes.String
+	return b
+}
+
+func (b *ResourceTypeBuilder) WithImportID() *ResourceTypeBuilder {
+	b.attributeTypes["import_id"] = tftypes.String
 	return b
 }
 

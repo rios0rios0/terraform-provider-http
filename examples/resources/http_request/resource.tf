@@ -154,7 +154,23 @@ resource "http_request" "with_query_params" {
   response_body_id_filter = "$[0].id"
 }
 
-# 9) Ignore volatile inputs (headers or JSON fragments)
+# 9) Tolerate non-2xx status codes (e.g. 404)
+# Use `tolerated_status_codes` to allow specific non-2xx responses without failing.
+# This is useful when the remote resource might not exist yet.
+resource "http_request" "maybe_exists" {
+  method = "GET"
+  path   = "/api/v1/widgets/42"
+  headers = {
+    "Accept" = "application/json"
+  }
+
+  tolerated_status_codes = [404]
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+}
+
+# 10) Ignore volatile inputs (headers or JSON fragments)
 # Use `ignore_changes` to prevent resource replacement when specific fields change.
 # This is useful for fields that contain dynamic values like UUIDs, timestamps, etc.
 # Supports:
@@ -185,4 +201,39 @@ resource "http_request" "idempotent_post" {
     "headers.X-Correlation-Id",
     "request_body.metadata.trace_id",
   ]
+}
+
+# 11) Detect drift on every refresh (opt-in)
+# `is_refresh_enabled` makes every `terraform plan` re-read the resource and update the captured
+# response, so changes made outside Terraform show up as a diff. It is off by default because a
+# generic HTTP resource cannot know which endpoint reflects the object it created: for a POST the
+# creation path is the collection, not the object. `refresh_path` names the object, and supports
+# the same inline JSONPath tokens as `delete_path`.
+resource "http_request" "watched" {
+  method = "POST"
+  path   = "/posts"
+
+  request_body = jsonencode({
+    title = "watched"
+  })
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+
+  is_refresh_enabled = true
+  refresh_path       = "/posts/$.id"
+
+  is_delete_enabled = true
+  delete_path       = "/posts/$.id"
+}
+
+# 12) Keep the identifier that re-imports a resource
+# `import_id` is rendered by the provider and is accepted verbatim by `terraform import`. Capturing
+# it as an output means it survives the loss of the state file that would make it necessary.
+# It encodes only the arguments you configured: neither `basic_auth` nor the captured response is
+# in it, so it is safe to paste into a shell or a CI log. Because this resource sets `refresh_path`,
+# the identifier carries the resolved object URL so a re-import can read the response back.
+output "watched_import_id" {
+  description = "Run: terraform import http_request.watched \"$(terraform output -raw watched_import_id)\""
+  value       = http_request.watched.import_id
 }
