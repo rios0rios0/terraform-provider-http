@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-07-31
+
 ### Added
 
 - added import adoption, so importing a resource never destroys and recreates it. Terraform does
