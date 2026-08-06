@@ -43,12 +43,19 @@ func testAccPreCheck(_ *testing.T) {
 func fullProviderType() tftypes.Object {
 	return builders.NewProviderTypeBuilder().
 		WithURL().
+		WithHeaders().
 		WithIgnoreTLS().
 		WithUsername().
 		WithPassword().
 		WithRequestTimeoutMs().
 		WithRetry().
 		Build()
+}
+
+// nullHeadersValue returns a null `headers` map value matching the schema. The provider object type
+// names every attribute, so every one of them needs a typed value even when it is null.
+func nullHeadersValue() tftypes.Value {
+	return tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil)
 }
 
 // nullRetryValue returns a null `retry` nested-block value matching the schema,
@@ -151,6 +158,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 							},
 							nil,
 						),
+						"headers":            nullHeadersValue(),
 						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
 						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
 						"retry":              nullRetryValue(),
@@ -189,6 +197,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 							},
 							nil,
 						),
+						"headers":            nullHeadersValue(),
 						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
 						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
 						"retry":              nullRetryValue(),
@@ -260,6 +269,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 								"password": tftypes.NewValue(tftypes.String, "pass"),
 							},
 						),
+						"headers":            nullHeadersValue(),
 						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
 						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
 						"retry":              nullRetryValue(),
@@ -301,6 +311,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 								"password": tftypes.NewValue(tftypes.String, nil),
 							},
 						),
+						"headers":            nullHeadersValue(),
 						"ignore_tls":         tftypes.NewValue(tftypes.Bool, nil),
 						"request_timeout_ms": tftypes.NewValue(tftypes.Number, nil),
 						"retry":              nullRetryValue(),

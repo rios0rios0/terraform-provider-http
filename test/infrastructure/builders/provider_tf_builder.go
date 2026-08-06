@@ -1,6 +1,9 @@
 package builders
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 const (
 	baseProviderTF = `
@@ -35,6 +38,24 @@ func (b *ProviderTFBuilder) WithPassword(password string) *ProviderTFBuilder {
 
 func (b *ProviderTFBuilder) WithBasicAuth(username, password string) *ProviderTFBuilder {
 	b.config += fmt.Sprintf("basic_auth = {\n  username = \"%s\"\n  password = \"%s\"\n}\n", username, password)
+	return b
+}
+
+func (b *ProviderTFBuilder) WithHeaders(headers map[string]string) *ProviderTFBuilder {
+	// Sorted so the rendered configuration is identical between runs; Go randomises map order and
+	// the terraform-plugin-testing harness compares configurations between steps as strings.
+	names := make([]string, 0, len(headers))
+	for name := range headers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	b.config += "headers = {\n"
+	for _, name := range names {
+		b.config += fmt.Sprintf("  %q = %q\n", name, headers[name])
+	}
+	b.config += "}\n"
+
 	return b
 }
 
