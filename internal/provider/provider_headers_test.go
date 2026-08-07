@@ -4,6 +4,7 @@ package provider
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -35,6 +36,27 @@ func requestModel(headers types.Map) HTTPRequestResourceModel {
 	}
 }
 
+// resourceHeaderMap converts a plain map into the framework map a resource's `headers` holds.
+func resourceHeaderMap(t *testing.T, headers map[string]string) types.Map {
+	t.Helper()
+
+	value, diags := types.MapValueFrom(context.Background(), types.StringType, headers)
+	require.False(t, diags.HasError(), "the fixture headers must convert cleanly")
+
+	return value
+}
+
+// buildTestRequest performs the build under test and fails the test if it errors, so each case is
+// left holding only its own given and then.
+func buildTestRequest(t *testing.T, it *HTTPRequestResource, model HTTPRequestResourceModel) *http.Request {
+	t.Helper()
+
+	request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+	require.NoError(t, err, "building the request must not fail")
+
+	return request
+}
+
 func TestBuildRequestProviderHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -46,10 +68,9 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 		model := requestModel(types.MapNull(types.StringType))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.Equal(t, "Bearer provider-value", request.Header.Get("Authorization"),
 			"a provider-level header must reach a request the resource did not add headers to")
 	})
@@ -59,16 +80,12 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 
 		// given
 		it := resourceWithProviderHeaders(map[string]string{"Authorization": "Bearer provider-value"})
-		resourceHeaders, diags := types.MapValueFrom(context.Background(), types.StringType,
-			map[string]string{"Authorization": "Bearer resource-value"})
-		require.False(t, diags.HasError())
-		model := requestModel(resourceHeaders)
+		model := requestModel(resourceHeaderMap(t, map[string]string{"Authorization": "Bearer resource-value"}))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.Equal(t, "Bearer resource-value", request.Header.Get("Authorization"),
 			"the resource is the more specific configuration and must override the provider")
 		assert.Len(t, request.Header.Values("Authorization"), 1,
@@ -80,18 +97,14 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 
 		// given: the two sides spell the same header differently, as RFC 9110 permits
 		it := resourceWithProviderHeaders(map[string]string{"authorization": "Bearer provider-value"})
-		resourceHeaders, diags := types.MapValueFrom(context.Background(), types.StringType,
-			map[string]string{"AUTHORIZATION": "Bearer resource-value"})
-		require.False(t, diags.HasError())
-		model := requestModel(resourceHeaders)
+		model := requestModel(resourceHeaderMap(t, map[string]string{"AUTHORIZATION": "Bearer resource-value"}))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
 		assert.Len(t, request.Header.Values("Authorization"), 1,
 			"differing casing must not produce two values for one header")
-		require.NoError(t, err)
 		assert.Equal(t, "Bearer resource-value", request.Header.Get("Authorization"),
 			"the resource must win whatever casing either side used")
 	})
@@ -104,16 +117,12 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 			"Authorization":   "Bearer provider-value",
 			"X-Provider-Only": "kept",
 		})
-		resourceHeaders, diags := types.MapValueFrom(context.Background(), types.StringType,
-			map[string]string{"X-Resource-Only": "added"})
-		require.False(t, diags.HasError())
-		model := requestModel(resourceHeaders)
+		model := requestModel(resourceHeaderMap(t, map[string]string{"X-Resource-Only": "added"}))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.Equal(t, "Bearer provider-value", request.Header.Get("Authorization"))
 		assert.Equal(t, "kept", request.Header.Get("X-Provider-Only"),
 			"declaring resource headers must not discard the provider's")
@@ -128,10 +137,9 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 		model := requestModel(types.MapNull(types.StringType))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.Empty(t, request.Header.Get("Authorization"),
 			"an unset provider headers map must leave the request exactly as it was before")
 	})
@@ -145,10 +153,9 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 		model.IsResponseBodyJSON = types.BoolValue(true)
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.Equal(t, "application/vnd.api+json", request.Header.Get("Content-Type"),
 			"provider headers are applied before the JSON defaults so an explicit value survives")
 	})
@@ -161,10 +168,9 @@ func TestBuildRequestProviderHeaders(t *testing.T) {
 		model := requestModel(types.MapNull(types.StringType))
 
 		// when
-		request, err := it.buildRequest(context.Background(), model, "https://example.test/resource")
+		request := buildTestRequest(t, it, model)
 
 		// then
-		require.NoError(t, err)
 		assert.NotNil(t, request)
 	})
 }
