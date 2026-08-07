@@ -38,6 +38,15 @@ const (
 	descRequestTimeoutMsProvider = "The per-request timeout in milliseconds applied to every HTTP request " +
 		"made by this provider. When unset or `0`, no timeout is applied and a request can wait indefinitely. " +
 		"It can be overridden per resource using the `request_timeout_ms` argument."
+	descHeadersProvider = "Headers sent on every HTTP request made by this provider, including the " +
+		"destroy request and the read an import issues. They are applied BEFORE each resource's own " +
+		"`headers`, so a resource that names the same header overrides the value here; the override is " +
+		"case-insensitive, as header names are. Intended for credentials an API expects in a header " +
+		"rather than in `basic_auth` (a bearer token, an API-key header): the import identifier is the " +
+		"only thing `ImportState` receives, so a credential kept in a resource's `headers` cannot reach " +
+		"the read an import performs, while one set here can. Never written to state, and there is no " +
+		"environment-variable equivalent -- unlike the `basic_auth` scalars, a map has no unambiguous " +
+		"encoding for one; supply the value from a Terraform variable instead."
 )
 
 // Ensure HTTPProvider satisfies various provider interfaces.
@@ -55,6 +64,7 @@ type HTTPProvider struct {
 type HTTPProviderModel struct {
 	URL              types.String `tfsdk:"url"                json:"url"`
 	BasicAuth        types.Object `tfsdk:"basic_auth"         json:"basic_auth"`
+	Headers          types.Map    `tfsdk:"headers"            json:"-"`
 	IgnoreTLS        types.Bool   `tfsdk:"ignore_tls"         json:"-"`
 	RequestTimeoutMs types.Int64  `tfsdk:"request_timeout_ms" json:"-"`
 	Retry            types.Object `tfsdk:"retry"              json:"-"`
@@ -112,6 +122,15 @@ func GetHTTPProviderSchema() schema.Schema {
 						Sensitive: true,
 					},
 				},
+			},
+			attrHeaders: schema.MapAttribute{
+				Description:         descHeadersProvider,
+				MarkdownDescription: descHeadersProvider,
+				Optional:            true,
+				// Sensitive because this is where a credential belongs when the API wants one in a
+				// header. It marks the whole map rather than guessing which key is the secret.
+				Sensitive:   true,
+				ElementType: types.StringType,
 			},
 			attrIgnoreTLS: schema.BoolAttribute{
 				Description: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
@@ -272,6 +291,10 @@ func (it *HTTPProvider) Configure(
 			Username: username,
 			Password: password,
 		}
+	}
+	internal.Config.Headers = stringMapOf(ctx, model.Headers, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	if !model.RequestTimeoutMs.IsNull() && !model.RequestTimeoutMs.IsUnknown() {
 		internal.Config.RequestTimeoutMs = model.RequestTimeoutMs.ValueInt64()

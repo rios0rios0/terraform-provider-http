@@ -4,6 +4,7 @@ import "github.com/hashicorp/terraform-plugin-go/tftypes"
 
 const (
 	attrBasicAuth        = "basic_auth"
+	attrHeaders          = "headers"
 	attrIgnoreTLS        = "ignore_tls"
 	attrUsername         = "username"
 	attrPassword         = "password"
@@ -70,6 +71,11 @@ func (b *ProviderTypeBuilder) WithPassword() *ProviderTypeBuilder {
 			},
 		}
 	}
+	return b
+}
+
+func (b *ProviderTypeBuilder) WithHeaders() *ProviderTypeBuilder {
+	b.attributeTypes[attrHeaders] = tftypes.Map{ElementType: tftypes.String}
 	return b
 }
 

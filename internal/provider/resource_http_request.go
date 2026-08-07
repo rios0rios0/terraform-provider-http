@@ -1869,6 +1869,10 @@ func (it *HTTPRequestResource) buildRequest(
 		return nil, fmt.Errorf("%w", err)
 	}
 
+	// Provider-level headers go on FIRST so the resource's own can override them, and so a
+	// provider-level `Content-Type` still suppresses the JSON default below.
+	it.applyProviderHeaders(req.Header)
+
 	if applyErr := applyHeadersFromMapAttr(ctx, req.Header, model.Headers); applyErr != nil {
 		return nil, applyErr
 	}
@@ -1888,11 +1892,11 @@ func (it *HTTPRequestResource) buildRequest(
 			return nil, errors.New("failed to get password from basic_auth")
 		}
 		req.SetBasicAuth(username.ValueString(), password.ValueString())
-	} else if it.internal.Config.HasAuthentication() {
+	} else if config := it.providerConfig(); config.HasAuthentication() {
 		// Fall back to provider-level basic auth
 		req.SetBasicAuth(
-			it.internal.Config.BasicAuth.Username,
-			it.internal.Config.BasicAuth.Password,
+			config.BasicAuth.Username,
+			config.BasicAuth.Password,
 		)
 	}
 
@@ -1935,6 +1939,43 @@ func applyHeadersFromMapAttr(ctx context.Context, h http.Header, m types.Map) er
 		h.Set(k, v)
 	}
 	return nil
+}
+
+// applyProviderHeaders writes the provider-level headers onto a request.
+//
+// Every request the resource issues is built here, so this one call covers create, read, refresh,
+// destroy AND the read an import performs -- which is the case that cannot be served any other way.
+// `ImportState` is handed the import identifier and nothing else, because Terraform never shows it
+// the configuration, so a credential kept in the resource's own `headers` is unavailable exactly
+// when the import read needs it, and spelling it into the identifier would print it wherever plan
+// output goes.
+//
+// `http.Header.Set` canonicalises the name, so a resource header applied afterwards overrides the
+// provider's regardless of the casing either side used -- which is the behaviour RFC 9110 requires
+// of header names.
+func (it *HTTPRequestResource) applyProviderHeaders(h http.Header) {
+	config := it.providerConfig()
+	if config == nil {
+		return
+	}
+
+	for name, value := range config.Headers {
+		h.Set(name, value)
+	}
+}
+
+// providerConfig returns the provider-level configuration, or nil when there is none to read.
+//
+// Terraform sets provider data AFTER the ConfigureProvider RPC, and `Configure` returns early while
+// it is absent, which leaves `internal` nil in that window. Reading through this keeps every
+// consumer of the provider configuration safe in it; before it existed, the provider-level
+// basic-auth fallback below dereferenced `internal` unguarded.
+func (it *HTTPRequestResource) providerConfig() *entities.Configuration {
+	if it.internal == nil {
+		return nil
+	}
+
+	return it.internal.Config
 }
 
 func applyDefaultJSONHeaders(h http.Header, expectJSON bool, looksJSON bool) {
