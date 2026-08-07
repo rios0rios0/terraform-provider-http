@@ -19,20 +19,63 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Added
 
-- added a provider-level `headers` map, sent on every request the provider makes and applied BEFORE each resource's own `headers`, so a resource naming the same header still overrides it. The override is case-insensitive because header names are: `http.Header.Set` canonicalises the name, so the two sides cannot disagree by casing alone. Merging is per header rather than all-or-nothing, so declaring resource headers does not discard the provider's, and the map is marked `Sensitive` because this is where a credential belongs when an API wants one in a header rather than in `basic_auth`
-- added it because **an import cannot authenticate any other way**. A resource created with an unsafe method names `import_read_path` so the provider force-GETs the object instead of replaying the POST that would create a second one — but `ImportState` is handed the import identifier and nothing else, since Terraform never shows it the configuration, so that GET is built from the identifier alone. An identifier deliberately omits `headers` (that is what keeps them adoptable — one that spells them out loses the in-place adoption and risks a `RequiresReplace` on the first plan), so a bearer token kept in the resource's `headers` is unavailable exactly when the import read needs it, and an API that authenticates through a header answers `401`. The remaining option was to spell the credential into the identifier, which works and prints it wherever plan output goes — plan logs, review comments — so there was no way to import against such an API without leaking the token. A provider-level header is the only place it can live and still be sent
-- added the merge at the single point every request is built, so create, read, refresh, destroy and the import read are all covered by one call. The destroy is worth naming separately: it sends `delete_headers`, so a resource that declares none previously had no credential for its own teardown
-- added no environment-variable equivalent, unlike the `basic_auth` scalars. A map has no unambiguous encoding for one, and the values belong in a Terraform variable; this is stated in the attribute description rather than left to be discovered
-- added `TestProviderHeadersReachTheImportRead` and `TestProviderHeadersReachTheDestroyRequest`, which run against an `httptest` server that answers `401` to any request without the expected bearer, so a regression fails on the provider's own error rather than on a subtle assertion. Both were confirmed to fail without the feature, reproducing `Error performing HTTP request. Not expected status code... Response code: 401 Unauthorized`. Seven unit tests cover the merge itself: provider-only, resource override, case-insensitive override, per-header merge, the empty map, a provider `Content-Type` surviving the JSON defaults, and an unconfigured provider
-- added nothing to the resource schema, so there is no state migration and no new upgrader: this is provider configuration, which has neither. Nothing is written to state, and no existing configuration changes behaviour — the map is optional and absent by default
+- added a provider-level `headers` map, sent on every request the provider makes and applied BEFORE
+  each resource's own `headers`, so a resource naming the same header still overrides it. The
+  override is case-insensitive because header names are: `http.Header.Set` canonicalises the name,
+  so the two sides cannot disagree by casing alone. Merging is per header rather than
+  all-or-nothing, so declaring resource headers does not discard the provider's, and the map is
+  marked `Sensitive` because this is where a credential belongs when an API wants one in a header
+  rather than in `basic_auth`
+- added it because an import cannot authenticate any other way. A resource created with an unsafe
+  method names `import_read_path` so the provider force-GETs the object instead of replaying the
+  `POST` that would create a second one -- but `ImportState` is handed the import identifier and
+  nothing else, since Terraform never shows it the configuration, so that GET is built from the
+  identifier alone. An identifier deliberately omits `headers` (that is what keeps them adoptable:
+  one that spells them out loses the in-place adoption and risks a `RequiresReplace` on the first
+  plan), so a bearer token kept in the resource's `headers` is unavailable exactly when the import
+  read needs it, and an API that authenticates through a header answers `401`. The remaining option
+  was to spell the credential into the identifier, which works and prints it wherever plan output
+  goes -- plan logs, review comments -- so there was no way to import against such an API without
+  leaking the token. A provider-level header is the only place it can live and still be sent
+- added the merge at the single point every request is built, so create, read, refresh, destroy and
+  the import read are all covered by one call. The destroy is worth naming separately: it sends
+  `delete_headers`, so a resource that declares none previously had no credential for its own
+  teardown
+- added no environment-variable equivalent, unlike the `basic_auth` scalars. A map has no
+  unambiguous encoding for one, and the values belong in a Terraform variable; this is stated in the
+  attribute description rather than left to be discovered
+- added `TestProviderHeadersReachTheImportRead` and `TestProviderHeadersReachTheDestroyRequest`,
+  which run against an `httptest` server that answers `401` to any request without the expected
+  bearer, so a regression fails on the provider's own error rather than on a subtle assertion. Both
+  were confirmed to fail without the feature, reproducing `Error performing HTTP request. Not
+  expected status code... Response code: 401 Unauthorized`. Seven unit tests cover the merge itself:
+  provider-only, resource override, case-insensitive override, per-header merge, the empty map, a
+  provider `Content-Type` surviving the JSON defaults, and an unconfigured provider
+- added nothing to the resource schema, so there is no state migration and no new upgrader: this is
+  provider configuration, which has neither. Nothing is written to state, and no existing
+  configuration changes behaviour -- the map is optional and absent by default
 
 ### Changed
 
 - changed the Go module dependencies to their latest versions
+- changed the `ValidateConfig` tests to build their provider value through `fullProviderValues`,
+  `basicAuthValue` and `validateConfigOf` instead of spelling the whole six-attribute object out per
+  case. Each of the four cases repeated all six attributes, so adding one attribute meant editing
+  four near-identical blocks -- which is what turned pre-existing duplication into NEW-code
+  duplication and failed the quality gate at `6.7%` against a `3%` ceiling. The new header tests got
+  the same treatment through `resourceHeaderMap` and `buildTestRequest`, leaving each case holding
+  only its own given and then. No behaviour change: every assertion is the one it was before, and it
+  is a net 45 lines shorter
 
 ### Fixed
 
-- fixed a latent nil-pointer dereference in the provider-level `basic_auth` fallback, which read `internal.Config` unguarded. Terraform sets provider data AFTER the `ConfigureProvider` RPC and `Configure` returns early while it is absent, so the field is reachable as nil — `Configure` already checks for exactly that. Every consumer of the provider configuration now reads it through one nil-safe accessor, and `HasAuthentication` tolerates a nil receiver. Found by the unit test written for the new attribute, which segfaulted on the pre-existing line rather than on the new one
+- fixed a latent nil-pointer dereference in the provider-level `basic_auth` fallback, which read
+  `internal.Config` unguarded. Terraform sets provider data AFTER the `ConfigureProvider` RPC and
+  `Configure` returns early while it is absent, so the field is reachable as nil -- `Configure`
+  already checks for exactly that. Every consumer of the provider configuration now reads it through
+  one nil-safe accessor, and `HasAuthentication` tolerates a nil receiver. Found by the unit test
+  written for the new attribute, which segfaulted on the pre-existing line rather than on the new
+  one
 
 ## [3.4.2] - 2026-08-04
 
