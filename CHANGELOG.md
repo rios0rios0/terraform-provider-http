@@ -17,6 +17,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.5.1] - 2026-08-09
+
 ### Changed
 
 - changed the Go module dependencies to their latest versions
@@ -63,8 +65,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Changed
 
-- changed the Go module dependencies to their latest versions
 - changed the `ValidateConfig` tests to build their provider value through `fullProviderValues`,
+- changed the Go module dependencies to their latest versions
   `basicAuthValue` and `validateConfigOf` instead of spelling the whole six-attribute object out per
   case. Each of the four cases repeated all six attributes, so adding one attribute meant editing
   four near-identical blocks -- which is what turned pre-existing duplication into NEW-code
