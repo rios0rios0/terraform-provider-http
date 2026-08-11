@@ -17,11 +17,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.5.1] - 2026-08-11
+
 ### Changed
 
 - changed the Go module dependencies to their latest versions
 - refreshed `CLAUDE.md` to document the provider-level `headers` merge order and the import-only `import_read_path`
-- changed the Go module dependencies to their latest versions
 
 ## [3.5.0] - 2026-08-06
 
@@ -65,8 +66,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Changed
 
-- changed the Go module dependencies to their latest versions
 - changed the `ValidateConfig` tests to build their provider value through `fullProviderValues`,
+- changed the Go module dependencies to their latest versions
   `basicAuthValue` and `validateConfigOf` instead of spelling the whole six-attribute object out per
   case. Each of the four cases repeated all six attributes, so adding one attribute meant editing
   four near-identical blocks -- which is what turned pre-existing duplication into NEW-code
