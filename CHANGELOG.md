@@ -21,6 +21,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 - changed the Go module dependencies to their latest versions
 - refreshed `CLAUDE.md` to document the provider-level `headers` merge order and the import-only `import_read_path`
+- changed the Go module dependencies to their latest versions
 
 ## [3.5.0] - 2026-08-06
 
