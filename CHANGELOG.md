@@ -22,6 +22,7 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 - changed the Go module dependencies to their latest versions
 - changed the Go module dependencies to their latest versions
 - changed the Go version to `1.27.0` and updated all module dependencies
+- refreshed `CLAUDE.md` and `.github/copilot-instructions.md` to reference the Go `1.27.0` version from `go.mod`
 
 ## [3.5.5] - 2026-08-17
 
