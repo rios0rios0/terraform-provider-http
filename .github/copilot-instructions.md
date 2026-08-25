@@ -65,12 +65,12 @@ resource "http_request" "test_request" {
 4. **Provider Installation**: Local provider must install to `~/.terraform.d/plugins/hashicorp-local.com/rios0rios0/http/$(VERSION)/linux_amd64/`
 5. **Terraform Integration**: `terraform init` and `terraform plan` must work with local provider
 6. **Documentation**: `make docs` must generate clean documentation in `docs/` directory
-7. **CHANGELOG.md**: **ALWAYS update CHANGELOG.md** with changes in the `[Unreleased]` section
+7. **Changelog fragment**: **ALWAYS write a fragment** with `chlog new --kind <Kind> --body "..."` and commit it from `.changes/unreleased/` -- `CHANGELOG.md` is generated from the fragments and is never edited by hand
 
 ### Code Quality Checks
 - Run `make lint` and `make lint-fix` to check and fix linting issues
 - Run `go fmt ./...` and `go vet ./...` before committing
-- **ALWAYS update CHANGELOG.md** in the `[Unreleased]` section when making changes
+- **ALWAYS write a changelog fragment** with `chlog new --kind <Kind> --body "..."` when making changes, and commit it from `.changes/unreleased/`
 
 ## Key Codebase Navigation
 
@@ -132,3 +132,28 @@ resource "http_request" "test_request" {
 - Documentation generation requires `terraform` binary in PATH
 
 Always build and exercise your changes with the validation scenarios above before considering work complete.
+
+<!-- chlog:start -->
+## Changelog (chlog) — MANDATORY
+
+If the repository you are working in uses chlog (a `.chlog.yaml` or `.chlog.yml`
+config file, or a `.changes/` directory, exists at the project root), the
+following is binding and ALWAYS applies: whenever you make ANY change, you MUST
+create a changelog fragment as part of the same change — automatically, without
+being asked, before committing.
+
+- Do NOT edit CHANGELOG.md directly; it is generated from fragments.
+- Create the fragment with:
+  `chlog new --kind <Kind> --body "<imperative description>"`
+- Valid kinds: Added, Changed, Deprecated, Removed, Fixed, Security
+- Choose the kind that best matches the change (e.g., new feature → Added,
+  bug fix → Fixed, behavior change → Changed, removal → Removed, security fix → Security).
+- If the change is backward-INCOMPATIBLE with the public API (a breaking
+  change), you MUST add the `--breaking` flag:
+  `chlog new --kind <Kind> --breaking --body "<description>"`.
+  This is the ONLY thing that triggers a major version bump — the kind alone
+  never does (per SemVer, major = incompatible change). When unsure whether a
+  change breaks compatibility, ask the user instead of guessing.
+- Fragments are YAML files in `.changes/unreleased/`; stage them with your commit.
+- `chlog check` fails the build when a fragment is missing — never skip it.
+<!-- chlog:end -->
