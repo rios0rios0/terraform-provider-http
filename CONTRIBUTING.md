@@ -7,8 +7,8 @@ development practices, refer to the **[Development Guide](https://github.com/rio
 
 ## Prerequisites
 
-- [Go](https://go.dev/dl/) 1.26+
-- [Terraform](https://developer.hashicorp.com/terraform/install) 1.10+
+- [Go](https://go.dev/dl/) 1.27+
+- [Terraform](https://developer.hashicorp.com/terraform/install) 1.11+
 - [Make](https://www.gnu.org/software/make/)
 - [chlog](https://github.com/luizjhonata/chlog) (`go install github.com/luizjhonata/chlog@latest`)
 
