@@ -204,3 +204,51 @@ func TestProviderHeadersReachTheDestroyRequest(t *testing.T) {
 		}
 	})
 }
+
+// TestShadowedDeleteHeadersStayNonFatal pins the severity of the shadowing diagnostic. Warning it
+// is: a great many existing configurations repeat the provider's credential in `delete_headers`,
+// and that is a hazard rather than a defect -- it only bites once the credential is rotated. If it
+// were ever raised to an error, every one of those configurations would stop planning at all.
+func TestShadowedDeleteHeadersStayNonFatal(t *testing.T) {
+	t.Run("should still plan, apply and destroy when delete_headers shadow the provider", func(t *testing.T) {
+		// given
+		srv, tracker := newGuardedServer(t)
+		providerConfig := builders.NewProviderTFBuilder().
+			WithURL(srv.URL).
+			WithHeaders(map[string]string{"Authorization": fixtureBearer}).
+			Build()
+
+		config := providerConfig + builders.NewResourceTFBuilder().
+			WithName("shadowed").
+			WithMethod("POST").
+			WithPath("/widgets").
+			WithRequestBody(strconv.Quote(`{"name":"fixture"}`)).
+			WithIsResponseBodyJSON(true).
+			WithResponseBodyIDFilter("$.id").
+			WithIsDeleteEnabled(true).
+			WithDeleteMethod("DELETE").
+			WithDeletePath("/widgets/$.id").
+			WithDeleteHeaders(map[string]string{"Authorization": fixtureBearer}).
+			Build()
+
+		// when
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:                 func() { testAccPreCheck(t) },
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{Config: config},
+				{Destroy: true, Config: config},
+			},
+		})
+
+		// then
+		authorizedDeletes, unauthorizedDeletes := tracker.counts(http.MethodDelete)
+		if unauthorizedDeletes != 0 {
+			t.Fatalf("the server rejected %d DELETE(s); the shadowing warning must not change "+
+				"which credential is sent", unauthorizedDeletes)
+		}
+		if authorizedDeletes != 1 {
+			t.Fatalf("DELETE calls = %d, want exactly 1", authorizedDeletes)
+		}
+	})
+}

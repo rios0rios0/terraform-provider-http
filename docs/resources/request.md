@@ -196,6 +196,13 @@ resource "http_request" "maybe_exists" {
 # NOTE: Delete fields (is_delete_enabled, delete_method, delete_path, delete_headers,
 # delete_request_body) do NOT need to be in ignore_changes - they never trigger
 # replacement because they only affect `terraform destroy` behavior.
+#
+# They are also write-only: Terraform sends no configuration to a destroy, so they are
+# captured into private state on create/update and replayed from there. Editing one alone
+# therefore produces no plan diff, and the destroy keeps using the capture until some other
+# state-stored attribute changes. Never put a rotating credential in `delete_headers` - put
+# it in the provider block's `headers`, which the destroy also sends and which is read fresh
+# on the run that performs it. See "Rotating credentials" in the provider documentation.
 resource "http_request" "idempotent_post" {
   method = "POST"
   path   = "/posts"
