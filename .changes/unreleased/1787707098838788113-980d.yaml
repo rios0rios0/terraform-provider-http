@@ -1,3 +1,0 @@
-kind: 'Added'
-body: 'added it in `ModifyPlan` rather than `ValidateConfig`, for two reasons: the provider configuration it compares against is only populated after `Configure`, and a CREATE plan must be warned too -- which is why the call sits ahead of the state guard and behind the plan guard, so a destroy plan stays silent'
-time: '2026-08-26T01:18:18.83875537Z'

@@ -23,6 +23,32 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-08-26
+
+### Added
+
+- added a plan-time warning when a resource's `delete_headers` names a header the provider configuration also sets. The condition is objective and provider-knowable -- a key present in both maps -- and nothing inspects the value or guesses whether it is a credential. Names are compared canonically, because `http.Header.Set` canonicalises them, so `authorization` in one map really does overwrite `Authorization` in the other; the diagnostic reports the spelling the configuration used
+- added a tailored `code-review` skill under `.github/skills/` so GitHub Copilot reviews changes against the [rios0rios0/guide](https://github.com/rios0rios0/guide/wiki) standards and this repository's own load-bearing invariants
+- added eleven unit tests over the comparison and the diagnostic's name formatting (overlap, case-insensitive overlap, spelling preservation, no overlap, multiple names sorted, an unconfigured provider, a resource with no delete headers, and the four list renderings), plus `TestShadowedDeleteHeadersStayNonFatal`, which pins the severity: a great many existing configurations repeat the provider's credential in `delete_headers`, and that is a hazard rather than a defect -- it only bites once the credential is rotated. Raising it to an error would stop every one of those configurations from planning at all
+- added it because the combination is a trap that is invisible until it fires, and then self-perpetuating. `delete_headers` is write-only and Terraform sends no configuration to a destroy (`resource.DeleteRequest` has no `Config` field, unlike `UpdateRequest`), so it is captured into private state at create/update and replayed on destroy -- where `makeDeleteModel` puts it exactly where a resource's own headers go, and `buildRequest` applies those AFTER the provider's. The resource value therefore wins. Fine for a header that describes the request; a trap for a credential, because rotating it means the destroy is sent with the value captured when the resource was created. If the endpoint rejects it the destroy fails, and when that destroy is the first half of a replacement -- which `headers` forces, being `RequiresReplace` as a whole map -- the replacement never completes, so state keeps the OLD value and every later plan proposes the same thing. No configuration edit reaches it, because the state write that would fix it is the one the failure prevents
+- added it in `ModifyPlan` rather than `ValidateConfig`, for two reasons: the provider configuration it compares against is only populated after `Configure`, and a CREATE plan must be warned too -- which is why the call sits ahead of the state guard and behind the plan guard, so a destroy plan stays silent
+
+### Changed
+
+- changed the changelog to [chlog](https://github.com/luizjhonata/chlog) fragments: a change now writes its own YAML file under `.changes/unreleased/` through `chlog new --kind <Kind> --body "..."`, and `CHANGELOG.md` is GENERATED from them at release time by `chlog batch auto && chlog merge`. That is the one thing a single shared file cannot do — two branches each adding an entry no longer touch the same lines, so a rebase that used to conflict on `CHANGELOG.md` now conflicts on nothing. The `[Unreleased]` section was empty, so nothing had to be carried across. AutoBump already reads the fragments directly, so the release flow is unchanged.
+- changed the Go module dependencies to their latest versions
+- changed the provider documentation to state the rule the warning enforces: a credential that rotates belongs in the provider block's `headers` and nowhere else -- not in a resource's own `headers`, which forces replacement as a whole map, and not repeated in `delete_headers`. The existing `ignore_changes` note in the resource documentation said the delete fields "never trigger replacement", which is true and was reassuring in the wrong direction; it now also says they are write-only, that editing one alone produces no plan diff, and that the destroy keeps using the capture until some other state-stored attribute changes
+- changed the provider-header integration tests to share `guardedConfigFor`, `withDeleteEnabled`, `applyThenDestroy` and `requireOnlyAuthorized`, so each case is left holding only its own given and then. The three cases repeated the whole guarded-server and POST-widget preamble, which is what turned pre-existing repetition into NEW-code duplication and failed the quality gate at `11.4%` against a `3%` ceiling. No behaviour change: every assertion is the one it was before
+
+### Fixed
+
+- fixed the `main` pipeline, which every repository's `sast:gitleaks` job had been failing since the code-review skill landed: the skill's own security bullet listed credential prefixes verbatim to warn against writing them, and the scanner's second pass matches those prefixes on their own, so the warning tripped the rule it was describing. The bullet now names the vendors instead, and the commit that carried the original wording is allowlisted by fingerprint in `.gitleaksignore`, because the scan walks the whole history reachable from `HEAD` and no edit at the tip can clear a past commit. No credential was ever committed.
+- fixed the prerequisites in `CONTRIBUTING.md`, which still asked for Go 1.26+ and Terraform 1.10+ while `go.mod` requires `go 1.27.0` and the WriteOnly attributes the provider ships need Terraform 1.11+ (as `README.md` already states).
+
+### Removed
+
+- removed the two stale items from the bump pull request template that asked for a `version` constant in `main.go` and a `VERSION` variable in the `Makefile` to be hand-edited. The provider version is injected at build time through `-ldflags` — GoReleaser passes the tag and the `Makefile` derives it from `git describe` — so `main.go` deliberately stays at `"dev"` and editing either by hand would have been wrong.
+
 ## [3.5.6] - 2026-08-24
 
 ### Changed
