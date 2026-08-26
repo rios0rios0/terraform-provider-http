@@ -63,6 +63,75 @@ func (it *authTracker) counts(verb string) (authorized, unauthorized int) {
 	return it.authorized[verb], it.unauthorized[verb]
 }
 
+// guardedConfigFor renders the shape every case in this file shares: a provider block whose
+// `headers` hold the only credential the guarded server accepts, plus a resource that POSTs a
+// widget and captures its id. `customise` adds whatever the case is actually about, so each test
+// below is left holding only its own given and then.
+func guardedConfigFor(
+	t *testing.T,
+	name string,
+	customise func(*builders.ResourceTFBuilder) *builders.ResourceTFBuilder,
+) (string, *authTracker) {
+	t.Helper()
+
+	srv, tracker := newGuardedServer(t)
+	providerConfig := builders.NewProviderTFBuilder().
+		WithURL(srv.URL).
+		WithHeaders(map[string]string{"Authorization": fixtureBearer}).
+		Build()
+
+	resourceConfig := builders.NewResourceTFBuilder().
+		WithName(name).
+		WithMethod("POST").
+		WithPath("/widgets").
+		WithRequestBody(strconv.Quote(`{"name":"fixture"}`)).
+		WithIsResponseBodyJSON(true).
+		WithResponseBodyIDFilter("$.id")
+
+	if customise != nil {
+		resourceConfig = customise(resourceConfig)
+	}
+
+	return providerConfig + resourceConfig.Build(), tracker
+}
+
+// withDeleteEnabled adds the destroy controls the two destroy cases share.
+func withDeleteEnabled(builder *builders.ResourceTFBuilder) *builders.ResourceTFBuilder {
+	return builder.
+		WithIsDeleteEnabled(true).
+		WithDeleteMethod("DELETE").
+		WithDeletePath("/widgets/$.id")
+}
+
+// applyThenDestroy runs the two-step case the destroy tests share.
+func applyThenDestroy(t *testing.T, config string) {
+	t.Helper()
+
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config},
+			{Destroy: true, Config: config},
+		},
+	})
+}
+
+// requireOnlyAuthorized asserts the server saw exactly `want` calls of `verb` and rejected none of
+// them. `why` says what a rejection would mean for the case at hand, so a failure still reads as
+// that case's failure rather than as a generic count mismatch.
+func requireOnlyAuthorized(t *testing.T, tracker *authTracker, verb string, want int, why string) {
+	t.Helper()
+
+	authorized, unauthorized := tracker.counts(verb)
+	if unauthorized != 0 {
+		t.Fatalf("the server rejected %d %s(s) as unauthenticated; %s", unauthorized, verb, why)
+	}
+	if authorized != want {
+		t.Fatalf("%s calls = %d, want exactly %d", verb, authorized, want)
+	}
+}
+
 // TestProviderHeadersReachTheImportRead is the load-bearing test for provider-level headers, and the
 // reason the feature exists. A resource created with POST cannot have its import read replay that
 // method, so an identifier names `import_read_path` and the provider force-GETs it instead. That GET
@@ -73,21 +142,8 @@ func (it *authTracker) counts(verb string) (authorized, unauthorized int) {
 func TestProviderHeadersReachTheImportRead(t *testing.T) {
 	t.Run("should authenticate the read of an identifier that carries no headers", func(t *testing.T) {
 		// given: the ONLY place the credential exists is the provider block
-		srv, tracker := newGuardedServer(t)
 		address := "http_request.guarded"
-		providerConfig := builders.NewProviderTFBuilder().
-			WithURL(srv.URL).
-			WithHeaders(map[string]string{"Authorization": fixtureBearer}).
-			Build()
-
-		config := providerConfig + builders.NewResourceTFBuilder().
-			WithName("guarded").
-			WithMethod("POST").
-			WithPath("/widgets").
-			WithRequestBody(strconv.Quote(`{"name":"fixture"}`)).
-			WithIsResponseBodyJSON(true).
-			WithResponseBodyIDFilter("$.id").
-			Build()
+		config, tracker := guardedConfigFor(t, "guarded", nil)
 
 		// when
 		resource.UnitTest(t, resource.TestCase{
@@ -147,15 +203,8 @@ func TestProviderHeadersReachTheImportRead(t *testing.T) {
 			t.Fatal("no authenticated GET reached the server, so the import read never happened")
 		}
 
-		authorizedPosts, unauthorizedPosts := tracker.counts(http.MethodPost)
-		if unauthorizedPosts != 0 {
-			t.Fatalf("the server rejected %d POST(s); provider headers must apply to create too",
-				unauthorizedPosts)
-		}
-		if authorizedPosts != 1 {
-			t.Fatalf("POST calls = %d, want exactly 1: adoption must not re-issue the create",
-				authorizedPosts)
-		}
+		requireOnlyAuthorized(t, tracker, http.MethodPost, 1,
+			"provider headers must apply to create too, and adoption must not re-issue it")
 	})
 }
 
@@ -164,43 +213,38 @@ func TestProviderHeadersReachTheImportRead(t *testing.T) {
 // credential for it at all.
 func TestProviderHeadersReachTheDestroyRequest(t *testing.T) {
 	t.Run("should authenticate a destroy that declares no delete_headers", func(t *testing.T) {
-		// given
-		srv, tracker := newGuardedServer(t)
-		providerConfig := builders.NewProviderTFBuilder().
-			WithURL(srv.URL).
-			WithHeaders(map[string]string{"Authorization": fixtureBearer}).
-			Build()
-
-		config := providerConfig + builders.NewResourceTFBuilder().
-			WithName("guarded").
-			WithMethod("POST").
-			WithPath("/widgets").
-			WithRequestBody(strconv.Quote(`{"name":"fixture"}`)).
-			WithIsResponseBodyJSON(true).
-			WithResponseBodyIDFilter("$.id").
-			WithIsDeleteEnabled(true).
-			WithDeleteMethod("DELETE").
-			WithDeletePath("/widgets/$.id").
-			Build()
+		// given: no `delete_headers` at all, so only the provider block can authenticate the DELETE
+		config, tracker := guardedConfigFor(t, "guarded", withDeleteEnabled)
 
 		// when
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{Config: config},
-				{Destroy: true, Config: config},
-			},
-		})
+		applyThenDestroy(t, config)
 
 		// then
-		authorizedDeletes, unauthorizedDeletes := tracker.counts(http.MethodDelete)
-		if unauthorizedDeletes != 0 {
-			t.Fatalf("the server rejected %d DELETE(s) as unauthenticated; provider headers must "+
-				"apply to the destroy request", unauthorizedDeletes)
-		}
-		if authorizedDeletes != 1 {
-			t.Fatalf("DELETE calls = %d, want exactly 1", authorizedDeletes)
-		}
+		requireOnlyAuthorized(t, tracker, http.MethodDelete, 1,
+			"provider headers must apply to the destroy request")
+	})
+}
+
+// TestShadowedDeleteHeadersStayNonFatal pins the severity of the shadowing diagnostic. Warning it
+// is: a great many existing configurations repeat the provider's credential in `delete_headers`,
+// and that is a hazard rather than a defect -- it only bites once the credential is rotated. If it
+// were ever raised to an error, every one of those configurations would stop planning at all.
+func TestShadowedDeleteHeadersStayNonFatal(t *testing.T) {
+	t.Run("should still plan, apply and destroy when delete_headers shadow the provider", func(t *testing.T) {
+		// given: `delete_headers` repeats the provider's credential, which is what the warning
+		// reports -- and what a great many real configurations do
+		config, tracker := guardedConfigFor(t, "shadowed", func(
+			builder *builders.ResourceTFBuilder,
+		) *builders.ResourceTFBuilder {
+			return withDeleteEnabled(builder).
+				WithDeleteHeaders(map[string]string{"Authorization": fixtureBearer})
+		})
+
+		// when
+		applyThenDestroy(t, config)
+
+		// then
+		requireOnlyAuthorized(t, tracker, http.MethodDelete, 1,
+			"the shadowing warning must not change which credential is sent")
 	})
 }

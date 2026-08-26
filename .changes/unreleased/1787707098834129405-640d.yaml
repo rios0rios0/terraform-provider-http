@@ -1,0 +1,3 @@
+kind: 'Added'
+body: 'added a plan-time warning when a resource''s `delete_headers` names a header the provider configuration also sets. The condition is objective and provider-knowable -- a key present in both maps -- and nothing inspects the value or guesses whether it is a credential. Names are compared canonically, because `http.Header.Set` canonicalises them, so `authorization` in one map really does overwrite `Authorization` in the other; the diagnostic reports the spelling the configuration used'
+time: '2026-08-26T01:18:18.834088319Z'

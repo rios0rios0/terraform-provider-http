@@ -1,0 +1,3 @@
+kind: 'Added'
+body: 'added eleven unit tests over the comparison and the diagnostic''s name formatting (overlap, case-insensitive overlap, spelling preservation, no overlap, multiple names sorted, an unconfigured provider, a resource with no delete headers, and the four list renderings), plus `TestShadowedDeleteHeadersStayNonFatal`, which pins the severity: a great many existing configurations repeat the provider''s credential in `delete_headers`, and that is a hazard rather than a defect -- it only bites once the credential is rotated. Raising it to an error would stop every one of those configurations from planning at all'
+time: '2026-08-26T01:18:28.184497544Z'

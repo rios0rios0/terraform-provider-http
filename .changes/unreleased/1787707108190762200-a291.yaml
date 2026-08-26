@@ -1,0 +1,3 @@
+kind: 'Changed'
+body: 'changed the provider-header integration tests to share `guardedConfigFor`, `withDeleteEnabled`, `applyThenDestroy` and `requireOnlyAuthorized`, so each case is left holding only its own given and then. The three cases repeated the whole guarded-server and POST-widget preamble, which is what turned pre-existing repetition into NEW-code duplication and failed the quality gate at `11.4%` against a `3%` ceiling. No behaviour change: every assertion is the one it was before'
+time: '2026-08-26T01:18:28.190724441Z'

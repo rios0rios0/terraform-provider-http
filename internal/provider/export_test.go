@@ -106,3 +106,16 @@ func ApplyDeleteParamsForTest(
 
 	return diagnostics
 }
+
+// ShadowedHeaderNamesForTest reports the delete-header names the provider configuration also sets.
+func ShadowedHeaderNamesForTest(
+	providerHeaders map[string]string,
+	deleteHeaderNames []string,
+) []string {
+	return shadowedHeaderNames(providerHeaders, deleteHeaderNames)
+}
+
+// FormatHeaderListForTest renders header names the way the shadowing diagnostic does.
+func FormatHeaderListForTest(names []string) string {
+	return formatHeaderList(names)
+}

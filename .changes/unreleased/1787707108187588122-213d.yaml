@@ -1,0 +1,3 @@
+kind: 'Changed'
+body: 'changed the provider documentation to state the rule the warning enforces: a credential that rotates belongs in the provider block''s `headers` and nowhere else -- not in a resource''s own `headers`, which forces replacement as a whole map, and not repeated in `delete_headers`. The existing `ignore_changes` note in the resource documentation said the delete fields "never trigger replacement", which is true and was reassuring in the wrong direction; it now also says they are write-only, that editing one alone produces no plan diff, and that the destroy keeps using the capture until some other state-stored attribute changes'
+time: '2026-08-26T01:18:28.187551963Z'

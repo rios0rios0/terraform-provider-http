@@ -917,6 +917,12 @@ func (it *HTTPRequestResource) ModifyPlan(
 	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() {
 		return
 	}
+
+	// Warned here rather than in `ValidateConfig`, because the provider configuration this
+	// compares against is only available after `Configure`, and because a create plan must be
+	// warned too -- which is why this sits ahead of the state guard below.
+	it.warnOnShadowedDeleteHeaders(ctx, req.Config, &resp.Diagnostics)
+
 	if req.State.Raw.IsNull() || !req.State.Raw.IsKnown() {
 		return
 	}
@@ -1961,6 +1967,126 @@ func (it *HTTPRequestResource) applyProviderHeaders(h http.Header) {
 
 	for name, value := range config.Headers {
 		h.Set(name, value)
+	}
+}
+
+// warnOnShadowedDeleteHeaders reports a `delete_headers` key that the provider block also sets.
+//
+// Terraform sends a NULL configuration to a destroy -- `resource.DeleteRequest` has no `Config`
+// field at all, unlike `UpdateRequest` -- so write-only delete controls cannot be read there.
+// They are captured into private state at create/update time and replayed on destroy, and
+// `makeDeleteModel` puts them where a resource's own headers go, which `buildRequest` applies
+// AFTER the provider's. The resource value therefore wins.
+//
+// That is fine for a header that describes the request and never changes. It is a trap for a
+// credential: rotate it, and the destroy is sent with the value captured when the resource was
+// created. If the endpoint rejects it, the destroy fails; and when the destroy is the first half
+// of a replacement (which `headers` forces, since it is RequiresReplace as a whole map), the
+// replacement never completes, so state keeps the OLD value and the next plan proposes exactly
+// the same thing. That is self-perpetuating, and no later configuration edit reaches it, because
+// the state write that would fix it is the one the failure prevents.
+//
+// The condition is objective and provider-knowable: a key present in both maps. Nothing here
+// inspects the VALUE or guesses whether it is a credential.
+func (it *HTTPRequestResource) warnOnShadowedDeleteHeaders(
+	ctx context.Context, config tfsdk.Config, diagnostics *diag.Diagnostics,
+) {
+	providerConfig := it.providerConfig()
+	if providerConfig == nil || len(providerConfig.Headers) == 0 {
+		return
+	}
+
+	var deleteHeaders types.Map
+	if diags := config.GetAttribute(
+		ctx, path.Root(attrDeleteHeaders), &deleteHeaders,
+	); diags.HasError() {
+		// A malformed configuration is the schema's error to report, not this warning's.
+		return
+	}
+	if deleteHeaders.IsNull() || deleteHeaders.IsUnknown() {
+		return
+	}
+
+	// Read once: `MapValue.Elements()` allocates a fresh map and copies every entry on each
+	// call, so len-then-range over it would do that work twice.
+	deleteHeaderElements := deleteHeaders.Elements()
+	deleteHeaderNames := make([]string, 0, len(deleteHeaderElements))
+	for name := range deleteHeaderElements {
+		deleteHeaderNames = append(deleteHeaderNames, name)
+	}
+
+	shadowed := shadowedHeaderNames(providerConfig.Headers, deleteHeaderNames)
+	if len(shadowed) == 0 {
+		return
+	}
+
+	diagnostics.AddAttributeWarning(
+		path.Root(attrDeleteHeaders),
+		"`delete_headers` shadows a provider-level header",
+		fmt.Sprintf(
+			"`delete_headers` sets %s, which this provider's configuration also sets.\n\n"+
+				"Terraform sends no configuration to a destroy, so `delete_headers` is captured "+
+				"into private state when the resource is created or updated and replayed on "+
+				"destroy, where it overrides the provider's value. The provider's value is read "+
+				"fresh on the run that performs the destroy; the captured one is as old as the "+
+				"last apply.\n\n"+
+				"If %s carries a credential that is later rotated, the destroy is sent with the "+
+				"old one. Should the endpoint reject it, the destroy fails -- and when that "+
+				"destroy is the first half of a replacement (which `headers` forces, being "+
+				"RequiresReplace as a whole map), the replacement never completes, so state keeps "+
+				"the old value and every later plan proposes the same replacement.\n\n"+
+				"Remove %s from `delete_headers` to inherit the provider's value. Provider "+
+				"configuration is never persisted to state, so a credential kept only there "+
+				"cannot go stale and cannot propose a replacement when it changes.",
+			formatHeaderList(shadowed), formatHeaderList(shadowed), formatHeaderList(shadowed),
+		),
+	)
+}
+
+// shadowedHeaderNames returns the delete-header names the provider configuration also sets,
+// sorted so a diagnostic reads the same on every run.
+//
+// Names are compared canonically because `http.Header.Set` canonicalises them, so `authorization`
+// in one map really does overwrite `Authorization` in the other. The returned names keep the
+// spelling the configuration used, so the diagnostic names what the author actually wrote.
+func shadowedHeaderNames(providerHeaders map[string]string, deleteHeaderNames []string) []string {
+	if len(providerHeaders) == 0 || len(deleteHeaderNames) == 0 {
+		return nil
+	}
+
+	canonical := make(map[string]struct{}, len(providerHeaders))
+	for name := range providerHeaders {
+		canonical[http.CanonicalHeaderKey(name)] = struct{}{}
+	}
+
+	shadowed := make([]string, 0, len(deleteHeaderNames))
+	for _, name := range deleteHeaderNames {
+		if _, found := canonical[http.CanonicalHeaderKey(name)]; found {
+			shadowed = append(shadowed, name)
+		}
+	}
+	if len(shadowed) == 0 {
+		return nil
+	}
+	slices.Sort(shadowed)
+
+	return shadowed
+}
+
+// formatHeaderList renders header names for a diagnostic: `A`, `A` and `B`, `A`, `B` and `C`.
+func formatHeaderList(names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, "`"+name+"`")
+	}
+
+	switch len(quoted) {
+	case 0:
+		return ""
+	case 1:
+		return quoted[0]
+	default:
+		return strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
 	}
 }
 
