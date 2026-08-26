@@ -28,7 +28,7 @@ Terraform provider using the Plugin Framework (not the older SDK). Follows a DDD
 
 ## Key Conventions
 
-- Always update `CHANGELOG.md` under `[Unreleased]` when making changes.
+- Always write a changelog fragment when making changes — `chlog new --kind <Kind> --body "..."`, committed from `.changes/unreleased/`. Never edit `CHANGELOG.md`: it is generated from the fragments at release time by `chlog batch auto && chlog merge`.
 - Delete-operation attributes (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`) are WriteOnly (Terraform 1.11+). They are not persisted in Terraform state; values are stored in provider private state.
 - Refresh-control attributes (`is_refresh_enabled`, `refresh_path`) are ordinary state-stored arguments, **not** WriteOnly — the `Read` RPC receives no configuration, so a write-only value would be unavailable exactly when refresh needs it.
 - Schema version is 3. Upgraders are registered for versions 0, 1 and 2, and the framework hands every one of them a response state built from the *current* schema — so a new attribute must be added to **all** of them, as a TYPED null (`types.MapNull(types.StringType)`, not a zero value), or the next plan fails with `Value Conversion Error ... MISSING TYPE`.
@@ -43,3 +43,28 @@ Terraform provider using the Plugin Framework (not the older SDK). Follows a DDD
 
 - Go 1.27.0+
 - Terraform 1.11+
+
+<!-- chlog:start -->
+## Changelog (chlog) — MANDATORY
+
+If the repository you are working in uses chlog (a `.chlog.yaml` or `.chlog.yml`
+config file, or a `.changes/` directory, exists at the project root), the
+following is binding and ALWAYS applies: whenever you make ANY change, you MUST
+create a changelog fragment as part of the same change — automatically, without
+being asked, before committing.
+
+- Do NOT edit CHANGELOG.md directly; it is generated from fragments.
+- Create the fragment with:
+  `chlog new --kind <Kind> --body "<imperative description>"`
+- Valid kinds: Added, Changed, Deprecated, Removed, Fixed, Security
+- Choose the kind that best matches the change (e.g., new feature → Added,
+  bug fix → Fixed, behavior change → Changed, removal → Removed, security fix → Security).
+- If the change is backward-INCOMPATIBLE with the public API (a breaking
+  change), you MUST add the `--breaking` flag:
+  `chlog new --kind <Kind> --breaking --body "<description>"`.
+  This is the ONLY thing that triggers a major version bump — the kind alone
+  never does (per SemVer, major = incompatible change). When unsure whether a
+  change breaks compatibility, ask the user instead of guessing.
+- Fragments are YAML files in `.changes/unreleased/`; stage them with your commit.
+- `chlog check` fails the build when a fragment is missing — never skip it.
+<!-- chlog:end -->
