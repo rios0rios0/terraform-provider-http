@@ -2007,8 +2007,11 @@ func (it *HTTPRequestResource) warnOnShadowedDeleteHeaders(
 		return
 	}
 
-	deleteHeaderNames := make([]string, 0, len(deleteHeaders.Elements()))
-	for name := range deleteHeaders.Elements() {
+	// Read once: `MapValue.Elements()` allocates a fresh map and copies every entry on each
+	// call, so len-then-range over it would do that work twice.
+	deleteHeaderElements := deleteHeaders.Elements()
+	deleteHeaderNames := make([]string, 0, len(deleteHeaderElements))
+	for name := range deleteHeaderElements {
 		deleteHeaderNames = append(deleteHeaderNames, name)
 	}
 
