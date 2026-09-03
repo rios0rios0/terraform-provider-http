@@ -23,6 +23,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.6.4] - 2026-09-03
+
+### Changed
+
+- changed the Go module dependencies to their latest versions
+
 ## [3.6.3] - 2026-09-02
 
 ### Changed
