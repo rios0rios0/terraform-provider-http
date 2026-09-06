@@ -279,7 +279,7 @@ output "watched_import_id" {
 - `delete_request_body` (String) Body to send only during deletion.
 - `headers` (Map of String) A map of HTTP headers to include in the request. Each key-value pair represents a header name and its corresponding value.
 - `ignore_changes` (Set of String) Optional list of attribute paths that should not force replacement when they change. Supports top-level attributes (e.g. `request_body`), individual map entries (e.g. `headers.X-Correlation-Id`), and JSON paths inside request bodies (e.g. `request_body.metadata.trace_id`).
-- `ignore_tls` (Boolean) A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. When specified, this overrides the provider-level ignore_tls configuration.
+- `ignore_tls` (Boolean) A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. When specified, this overrides the provider-level ignore_tls configuration. Every request that skips verification logs a warning (visible with `TF_LOG=WARN`).
 - `is_delete_enabled` (Boolean) Enables remote deletion during `terraform destroy`. If true and no delete_path is provided, a DELETE will be sent to the original `path`.
 - `is_refresh_enabled` (Boolean) Enables drift detection. When true, every refresh re-issues a GET against `refresh_path` (or `path`) and updates the captured response. A response that is neither successful nor listed in `tolerated_status_codes` removes the resource from state so it is planned for creation again. Defaults to false, which keeps the response captured at create time.
 - `is_response_body_json` (Boolean) A boolean flag indicating whether the response body is expected to be in JSON format.
