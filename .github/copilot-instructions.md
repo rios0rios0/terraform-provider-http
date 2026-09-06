@@ -87,12 +87,13 @@ resource "http_request" "test_request" {
 - `test/infrastructure/builders/` -- test utilities for building provider and resource configurations
 - `examples/` -- working example configurations for testing
 - `Makefile` -- build automation with all essential targets
+- `sonar-project.properties` -- SonarCloud settings; records the accepted `ignore_tls` transport findings (go:S4830 / go:S5527) so they are not "fixed" by removing the feature
 - `tools/tools.go` -- tool dependencies (e.g. `tfplugindocs`)
 
 ### Important Provider Features
 - HTTP methods: GET, POST, PUT, DELETE with full header support
 - JSON response parsing with JSONPath filtering (`response_body_id_filter`)
-- Basic authentication and TLS options (configurable at both provider and resource level)
+- Basic authentication and TLS options (configurable at both provider and resource level). `ignore_tls` defaults to `false`, is never enabled implicitly, and logs a WARN entry whenever a request skips verification
 - Query parameters and request body support
 - State management with response storage
 - Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`, `delete_resolved_path`). Since v3.0.0 these are WriteOnly attributes (not persisted in state; stored in provider private state)

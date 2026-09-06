@@ -47,6 +47,24 @@ const (
 		"the read an import performs, while one set here can. Never written to state, and there is no " +
 		"environment-variable equivalent -- unlike the `basic_auth` scalars, a map has no unambiguous " +
 		"encoding for one; supply the value from a Terraform variable instead."
+	descIgnoreTLSProvider = "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
+		"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
+		"It is optional and defaults to `false`. When enabled, the provider logs a warning (visible with " +
+		"`TF_LOG=WARN`) because every server certificate is trusted."
+	descIgnoreTLSResource = "A boolean flag to indicate whether TLS certificate verification should be ignored " +
+		"for this specific request. When specified, this overrides the provider-level ignore_tls configuration. " +
+		"Every request that skips verification logs a warning (visible with `TF_LOG=WARN`)."
+)
+
+// Logged at WARN whenever a request is about to skip TLS certificate verification. `ignore_tls` is
+// an opt-in, documented feature (self-signed certificates, local testing) that is never enabled
+// implicitly, so the message is the audit trail an operator gets with `TF_LOG=WARN` rather than a
+// diagnostic that would be printed on every plan of a configuration that set the option on purpose.
+const (
+	warnIgnoreTLSProvider = "TLS certificate verification is disabled by `ignore_tls`: every request made " +
+		"through this provider configuration will trust any server certificate"
+	warnIgnoreTLSRequest = "TLS certificate verification is disabled by `ignore_tls` for this request: " +
+		"any server certificate will be trusted"
 )
 
 // Ensure HTTPProvider satisfies various provider interfaces.
@@ -133,13 +151,9 @@ func GetHTTPProviderSchema() schema.Schema {
 				ElementType: types.StringType,
 			},
 			attrIgnoreTLS: schema.BoolAttribute{
-				Description: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
-					"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
-					"It is optional and defaults to `false`.",
-				MarkdownDescription: "A boolean flag to indicate whether TLS certificate verification should be ignored. " +
-					"This is useful for testing purposes or when interacting with APIs that use self-signed certificates. " +
-					"It is optional and defaults to `false`.",
-				Optional: true,
+				Description:         descIgnoreTLSProvider,
+				MarkdownDescription: descIgnoreTLSProvider,
+				Optional:            true,
 			},
 			attrRequestTimeoutMs: providerOptionalInt64(descRequestTimeoutMsProvider),
 		},
@@ -274,6 +288,9 @@ func (it *HTTPProvider) Configure(
 	ctx = tflog.SetField(ctx, "http_password", password)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "http_password")
 	ctx = tflog.SetField(ctx, "http_ignore_tls", model.IgnoreTLS.ValueBool())
+	if model.IgnoreTLS.ValueBool() {
+		tflog.Warn(ctx, warnIgnoreTLSProvider)
+	}
 
 	/* TODO: is it worth to use JSON instead of getting value per value?
 	var source Configuration

@@ -330,9 +330,7 @@ func addResourceConfigAttributes(attrs map[string]schema.Attribute) {
 			},
 		},
 	}
-	attrs[attrIgnoreTLS] = replaceableBoolAttribute(false,
-		"A boolean flag to indicate whether TLS certificate verification should be ignored for this specific request. "+
-			"When specified, this overrides the provider-level ignore_tls configuration.")
+	attrs[attrIgnoreTLS] = replaceableBoolAttribute(false, descIgnoreTLSResource)
 }
 
 // addRefreshControlAttributes adds the opt-in drift detection. They are ordinary state-stored
@@ -2309,7 +2307,7 @@ func (it *HTTPRequestResource) buildFullURL(
 // timeout (when set) bounds each individual attempt; an unset/zero timeout
 // preserves the historical behavior of waiting indefinitely.
 func (it *HTTPRequestResource) getHTTPClient(
-	_ context.Context,
+	ctx context.Context,
 	model HTTPRequestResourceModel,
 ) *http.Client {
 	ignoreTLS := it.resolveIgnoreTLS(model)
@@ -2318,6 +2316,7 @@ func (it *HTTPRequestResource) getHTTPClient(
 
 	base := &http.Client{Timeout: timeout}
 	if ignoreTLS {
+		tflog.Warn(ctx, warnIgnoreTLSRequest)
 		base.Transport = it.resolveInsecureTransport()
 	}
 
