@@ -1,3 +1,0 @@
-kind: 'Added'
-body: 'added a warning log entry whenever a request skips TLS certificate verification through `ignore_tls`'
-time: '2026-09-05T20:21:50.730553357Z'
