@@ -1,0 +1,3 @@
+kind: 'Changed'
+body: 'refreshed `.github/copilot-instructions.md` to specify the `go.mod` Go version as `1.27.1`'
+time: '2026-09-07T12:00:00.000000000Z'
