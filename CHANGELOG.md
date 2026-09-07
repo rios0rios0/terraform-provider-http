@@ -23,6 +23,17 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-09-07
+
+### Added
+
+- added `sonar-project.properties` recording the opt-in `ignore_tls` transport findings (go:S4830, go:S5527) as accepted, since skipping verification is the documented feature
+- added a warning log entry whenever a request skips TLS certificate verification through `ignore_tls`
+
+### Changed
+
+- changed the Go module dependencies to their latest versions
+
 ## [3.6.4] - 2026-09-03
 
 ### Changed

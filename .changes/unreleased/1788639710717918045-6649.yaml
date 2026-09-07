@@ -1,3 +1,0 @@
-kind: 'Added'
-body: 'added `sonar-project.properties` recording the opt-in `ignore_tls` transport findings (go:S4830, go:S5527) as accepted, since skipping verification is the documented feature'
-time: '2026-09-05T20:21:50.717865232Z'
