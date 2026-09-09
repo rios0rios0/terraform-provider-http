@@ -12,8 +12,9 @@ Always reference these instructions first and fall back to search or bash comman
 ### Essential Build and Test Commands
 - `make build` -- compiles the provider binary. Takes <1 second. NEVER CANCEL.
 - `make install` -- builds and installs provider locally for testing. Takes ~1 second.
-- `make test` -- runs full test suite with coverage. Takes ~4 seconds. NEVER CANCEL. Set timeout to 30+ seconds.
+- `make test` -- runs full test suite with coverage: the untagged unit tests first, then the `integration`-tagged acceptance tests, which drive a real Terraform binary and partly hit the network. Takes ~3 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
 - `make docs` -- generates provider documentation. Takes ~2 seconds. NEVER CANCEL.
+- `docs/` is generated output: never edit it by hand. The provider page renders from `templates/index.md.tmpl` and the examples from `examples/`; put prose and comments there, then run `make docs` and commit the result
 - `make lint` -- runs comprehensive linting using golangci-lint. Takes ~1 minute. NEVER CANCEL.
 - `make lint-fix` -- runs linting and automatically fixes issues where possible.
 
@@ -80,7 +81,8 @@ resource "http_request" "test_request" {
   - `provider.go` -- provider configuration and setup
   - `resource_http_request.go` -- main HTTP request resource
   - `ignore_changes_helper.go` -- `ignore_changes` feature implementation
-  - `*_test.go` -- comprehensive test files with unit and integration tests (including `resource_http_request_ignore_test.go` and the update re-issue regression tests in `resource_http_request_reissue_test.go` / `resource_http_request_reissue_integration_test.go`)
+  - `*_test.go` -- comprehensive test files with unit and integration tests (including `resource_http_request_ignore_test.go` and the update re-issue regression tests in `resource_http_request_reissue_test.go` / `resource_http_request_reissue_integration_test.go`). Unit tests carry no build tag; acceptance tests (anything driving `resource.UnitTest`) carry `//go:build integration`; internal-package unit files are named `*_internal_test.go` so the `testpackage` linter accepts them
+  - `acceptance_test.go` -- the shared acceptance harness (`testAccProtoV6ProviderFactories`, `testAccPreCheck`) and the `liveProvider()` helpers every provider block pointed at the live endpoint is rendered from
 - `internal/domain/entities/` -- domain entities and business logic (`Configuration`, `InternalContext`)
 - `internal/infrastructure/helpers/` -- HTTP, mapper, and resource helper utilities
 - `internal/infrastructure/validators/` -- custom validators (e.g. `StringNotEmpty`)
@@ -119,7 +121,7 @@ resource "http_request" "test_request" {
 - Missing dependencies: Run `go mod download` and `go mod tidy`
 
 ### Test Issues
-- Network connectivity issues in tests: Tests use `jsonplaceholder.typicode.com` for integration testing
+- Network connectivity issues in tests: the live acceptance tests use `jsonplaceholder.typicode.com`. Every provider block that actually reaches the endpoint carries a `request_timeout_ms` and a `retry` block (see `liveProvider()` in `acceptance_test.go`), because the endpoint sits behind a CDN that occasionally resets a connection and the provider only retries when asked to. Keep new live tests on those helpers
 - Provider namespace errors: Ensure `TF_ACC_PROVIDER_NAMESPACE=rios0rios0` is set for acceptance tests
 
 ### Provider Installation Issues

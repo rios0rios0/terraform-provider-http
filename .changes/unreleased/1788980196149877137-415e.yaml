@@ -1,0 +1,3 @@
+kind: 'Fixed'
+body: 'fixed the live acceptance suite failing on a single dropped connection to `jsonplaceholder.typicode.com`: every provider block the suite renders now comes from `liveProvider()` in `acceptance_test.go` and carries a `request_timeout_ms` and a `retry` block, so a transient `connection reset by peer` is retried instead of failing the run, and added `WithRetry`/`WithRequestTimeoutMs` to the provider configuration builder plus an acceptance test proving a provider-level `retry` block replays a request the server reset'
+time: '2026-09-09T18:56:36.148765155Z'
