@@ -121,7 +121,7 @@ resource "http_request" "test_request" {
 - Missing dependencies: Run `go mod download` and `go mod tidy`
 
 ### Test Issues
-- Network connectivity issues in tests: the live acceptance tests use `jsonplaceholder.typicode.com`. Every provider block they render carries a `request_timeout_ms` and a `retry` block (see `liveProvider()` in `acceptance_test.go`), because the endpoint sits behind a CDN that occasionally resets a connection and the provider only retries when asked to. Keep new live tests on those helpers
+- Network connectivity issues in tests: the live acceptance tests use `jsonplaceholder.typicode.com`. Every provider block that actually reaches the endpoint carries a `request_timeout_ms` and a `retry` block (see `liveProvider()` in `acceptance_test.go`), because the endpoint sits behind a CDN that occasionally resets a connection and the provider only retries when asked to. Keep new live tests on those helpers
 - Provider namespace errors: Ensure `TF_ACC_PROVIDER_NAMESPACE=rios0rios0` is set for acceptance tests
 
 ### Provider Installation Issues

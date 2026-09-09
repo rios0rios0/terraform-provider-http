@@ -22,15 +22,15 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"http": providerserver.NewProtocol6WithError(New("test")()),
 }
 
-func testAccPreCheck(_ *testing.T) {
-	err := os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "rios0rios0")
-	if err != nil {
-		return
-	}
+// testAccPreCheck runs before every acceptance case. The namespace is set with os.Setenv rather
+// than t.Setenv because the callers run in parallel, which t.Setenv refuses; the value is the same
+// for every caller, so the order they set it in does not matter.
+func testAccPreCheck(t *testing.T) {
+	t.Helper()
 
-	// You can add code here to run prior to any test case execution, for example assertions
-	// about the appropriate environment variables being set are common to see in a pre-check
-	// function.
+	if err := os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "rios0rios0"); err != nil {
+		t.Fatalf("setting TF_ACC_PROVIDER_NAMESPACE, without which the provider cannot be resolved: %v", err)
+	}
 }
 
 // liveEndpoint is the public API the live acceptance tests exercise for real.

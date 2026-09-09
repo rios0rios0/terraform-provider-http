@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -12,7 +13,99 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// fullResourceType names every attribute of the resource schema, which is what a raw value handed
+// to ValidateConfig has to match.
+func fullResourceType() tftypes.Object {
+	return builders.NewResourceTypeBuilder().
+		WithMethod().
+		WithPath().
+		WithHeaders().
+		WithRequestBody().
+		WithIsResponseBodyJSON().
+		WithResponseBodyIDFilter().
+		WithQueryParameters().
+		WithIgnoreChanges().
+		WithIsDeleteEnabled().
+		WithDeleteMethod().
+		WithDeletePath().
+		WithDeleteHeaders().
+		WithDeleteRequestBody().
+		WithDeleteResolvedPath().
+		WithID().
+		WithResponseCode().
+		WithResponseBody().
+		WithResponseBodyID().
+		WithResponseBodyJSON().
+		Build()
+}
+
+// nullResourceValues returns every attribute of fullResourceType as a typed null. A case sets the
+// handful of attributes it is about on top of it instead of spelling all nineteen out each time.
+func nullResourceValues() map[string]tftypes.Value {
+	stringMap := tftypes.Map{ElementType: tftypes.String}
+
+	return map[string]tftypes.Value{
+		"method":                  tftypes.NewValue(tftypes.String, nil),
+		"path":                    tftypes.NewValue(tftypes.String, nil),
+		"headers":                 tftypes.NewValue(stringMap, nil),
+		"request_body":            tftypes.NewValue(tftypes.String, nil),
+		"is_response_body_json":   tftypes.NewValue(tftypes.Bool, nil),
+		"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
+		"query_parameters":        tftypes.NewValue(stringMap, nil),
+		"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
+
+		// Destroy controls
+		"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, nil),
+		"delete_method":        tftypes.NewValue(tftypes.String, nil),
+		"delete_path":          tftypes.NewValue(tftypes.String, nil),
+		"delete_headers":       tftypes.NewValue(stringMap, nil),
+		"delete_request_body":  tftypes.NewValue(tftypes.String, nil),
+		"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
+
+		// Computed fields
+		"id":                 tftypes.NewValue(tftypes.String, nil),
+		"response_code":      tftypes.NewValue(tftypes.Number, nil),
+		"response_body":      tftypes.NewValue(tftypes.String, nil),
+		"response_body_id":   tftypes.NewValue(tftypes.String, nil),
+		"response_body_json": tftypes.NewValue(stringMap, nil),
+	}
+}
+
+// resourceConfigOf builds the raw resource value ValidateConfig receives from the attributes a case
+// sets; every other attribute stays null.
+func resourceConfigOf(set map[string]tftypes.Value) tftypes.Value {
+	values := nullResourceValues()
+	maps.Copy(values, set)
+
+	return tftypes.NewValue(fullResourceType(), values)
+}
+
+// validateResourceConfigOf runs the resource's ValidateConfig over a raw value and returns the
+// diagnostics, the counterpart of validateConfigOf for the provider.
+func validateResourceConfigOf(raw tftypes.Value) diag.Diagnostics {
+	req := fresource.ValidateConfigRequest{
+		Config: tfsdk.Config{Raw: raw, Schema: GetHTTPRequestResourceSchema()},
+	}
+	resp := fresource.ValidateConfigResponse{Diagnostics: make(diag.Diagnostics, 0)}
+
+	it := &HTTPRequestResource{}
+	it.ValidateConfig(context.Background(), req, &resp)
+
+	return resp.Diagnostics
+}
+
+// stringValue keeps the attribute tables below to one line per attribute.
+func stringValue(value string) tftypes.Value {
+	return tftypes.NewValue(tftypes.String, value)
+}
+
+// boolValue is stringValue for booleans.
+func boolValue(value bool) tftypes.Value {
+	return tftypes.NewValue(tftypes.Bool, value)
+}
 
 func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 	t.Parallel()
@@ -21,330 +114,160 @@ func TestHTTPRequestResource_ValidateConfig(t *testing.T) {
 		t.Parallel()
 
 		// given
-		req := fresource.ValidateConfigRequest{
-			Config: tfsdk.Config{
-				Raw: tftypes.NewValue(
-					builders.NewResourceTypeBuilder().
-						WithMethod().
-						WithPath().
-						WithHeaders().
-						WithRequestBody().
-						WithIsResponseBodyJSON().
-						WithResponseBodyIDFilter().
-						WithQueryParameters().
-						WithIgnoreChanges().
-						WithIsDeleteEnabled().
-						WithDeleteMethod().
-						WithDeletePath().
-						WithDeleteHeaders().
-						WithDeleteRequestBody().
-						WithDeleteResolvedPath().
-						WithID().
-						WithResponseCode().
-						WithResponseBody().
-						WithResponseBodyID().
-						WithResponseBodyJSON().
-						Build(),
-					map[string]tftypes.Value{
-						"method":                  tftypes.NewValue(tftypes.String, "GET"),
-						"path":                    tftypes.NewValue(tftypes.String, "/posts/1"),
-						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"request_body":            tftypes.NewValue(tftypes.String, nil),
-						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, false),
-						"response_body_id_filter": tftypes.NewValue(tftypes.String, nil),
-						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
-
-						// Destroy controls
-						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, nil),
-						"delete_method":        tftypes.NewValue(tftypes.String, nil),
-						"delete_path":          tftypes.NewValue(tftypes.String, nil),
-						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"delete_request_body":  tftypes.NewValue(tftypes.String, nil),
-						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
-
-						// Computed fields
-						"id":                 tftypes.NewValue(tftypes.String, nil),
-						"response_code":      tftypes.NewValue(tftypes.Number, nil),
-						"response_body":      tftypes.NewValue(tftypes.String, nil),
-						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
-						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-					},
-				),
-				Schema: GetHTTPRequestResourceSchema(),
-			},
-		}
-		resp := fresource.ValidateConfigResponse{
-			Diagnostics: make(diag.Diagnostics, 0),
-		}
+		raw := resourceConfigOf(map[string]tftypes.Value{
+			"method":                stringValue("GET"),
+			"path":                  stringValue("/posts/1"),
+			"is_response_body_json": boolValue(false),
+		})
 
 		// when
-		it := &HTTPRequestResource{}
-		it.ValidateConfig(context.Background(), req, &resp)
+		diagnostics := validateResourceConfigOf(raw)
 
 		// then
-		assert.Empty(t, resp.Diagnostics, "there should be no errors when required parameters are set")
+		assert.Empty(t, diagnostics, "there should be no errors when required parameters are set")
 	})
 }
 
 func TestHTTPRequestResource_DestroyValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should validate destroy configuration with custom delete_path and JSONPath token", func(t *testing.T) {
-		t.Parallel()
-
-		// given
-		req := fresource.ValidateConfigRequest{
-			Config: tfsdk.Config{
-				Raw: tftypes.NewValue(
-					builders.NewResourceTypeBuilder().
-						WithMethod().
-						WithPath().
-						WithHeaders().
-						WithRequestBody().
-						WithIsResponseBodyJSON().
-						WithResponseBodyIDFilter().
-						WithQueryParameters().
-						WithIgnoreChanges().
-						WithIsDeleteEnabled().
-						WithDeleteMethod().
-						WithDeletePath().
-						WithDeleteHeaders().
-						WithDeleteRequestBody().
-						WithDeleteResolvedPath().
-						WithID().
-						WithResponseCode().
-						WithResponseBody().
-						WithResponseBodyID().
-						WithResponseBodyJSON().
-						Build(),
-					map[string]tftypes.Value{
-						"method":                  tftypes.NewValue(tftypes.String, "POST"),
-						"path":                    tftypes.NewValue(tftypes.String, "/posts"),
-						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"request_body":            tftypes.NewValue(tftypes.String, `{"title":"test"}`),
-						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
-						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
-						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
-
-						// Destroy controls
-						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),
-						"delete_method":        tftypes.NewValue(tftypes.String, "DELETE"),
-						"delete_path":          tftypes.NewValue(tftypes.String, "/posts/$.id"),
-						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"delete_request_body":  tftypes.NewValue(tftypes.String, nil),
-						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
-
-						// Computed fields
-						"id":                 tftypes.NewValue(tftypes.String, nil),
-						"response_code":      tftypes.NewValue(tftypes.Number, nil),
-						"response_body":      tftypes.NewValue(tftypes.String, nil),
-						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
-						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-					},
-				),
-				Schema: GetHTTPRequestResourceSchema(),
+	// Every case is a POST that captures the created id and enables the destroy; the cases differ
+	// only in how that destroy is issued.
+	cases := []struct {
+		name    string
+		destroy map[string]tftypes.Value
+	}{
+		{
+			name: "should validate destroy configuration with custom delete_path and JSONPath token",
+			destroy: map[string]tftypes.Value{
+				"delete_method": stringValue("DELETE"),
+				"delete_path":   stringValue("/posts/$.id"),
 			},
-		}
-		resp := fresource.ValidateConfigResponse{
-			Diagnostics: make(diag.Diagnostics, 0),
-		}
-
-		// when
-		it := &HTTPRequestResource{}
-		it.ValidateConfig(context.Background(), req, &resp)
-
-		// then
-		assert.Empty(t, resp.Diagnostics, "there should be no errors when all parameters are correctly set for destroy")
-	})
-
-	t.Run("should validate destroy configuration with custom delete_method POST", func(t *testing.T) {
-		t.Parallel()
-
-		// given
-		req := fresource.ValidateConfigRequest{
-			Config: tfsdk.Config{
-				Raw: tftypes.NewValue(
-					builders.NewResourceTypeBuilder().
-						WithMethod().
-						WithPath().
-						WithHeaders().
-						WithRequestBody().
-						WithIsResponseBodyJSON().
-						WithResponseBodyIDFilter().
-						WithQueryParameters().
-						WithIgnoreChanges().
-						WithIsDeleteEnabled().
-						WithDeleteMethod().
-						WithDeletePath().
-						WithDeleteHeaders().
-						WithDeleteRequestBody().
-						WithDeleteResolvedPath().
-						WithID().
-						WithResponseCode().
-						WithResponseBody().
-						WithResponseBodyID().
-						WithResponseBodyJSON().
-						Build(),
-					map[string]tftypes.Value{
-						"method":                  tftypes.NewValue(tftypes.String, "POST"),
-						"path":                    tftypes.NewValue(tftypes.String, "/posts"),
-						"headers":                 tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"request_body":            tftypes.NewValue(tftypes.String, `{"title":"test"}`),
-						"is_response_body_json":   tftypes.NewValue(tftypes.Bool, true),
-						"response_body_id_filter": tftypes.NewValue(tftypes.String, "$.id"),
-						"query_parameters":        tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"ignore_changes":          tftypes.NewValue(tftypes.Set{ElementType: tftypes.String}, nil),
-
-						// Destroy controls - soft delete example
-						"is_delete_enabled":    tftypes.NewValue(tftypes.Bool, true),
-						"delete_method":        tftypes.NewValue(tftypes.String, "POST"),
-						"delete_path":          tftypes.NewValue(tftypes.String, "/posts/$.id/archive"),
-						"delete_headers":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-						"delete_request_body":  tftypes.NewValue(tftypes.String, `{"reason":"terraform destroy"}`),
-						"delete_resolved_path": tftypes.NewValue(tftypes.String, nil),
-
-						// Computed fields
-						"id":                 tftypes.NewValue(tftypes.String, nil),
-						"response_code":      tftypes.NewValue(tftypes.Number, nil),
-						"response_body":      tftypes.NewValue(tftypes.String, nil),
-						"response_body_id":   tftypes.NewValue(tftypes.String, nil),
-						"response_body_json": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
-					},
-				),
-				Schema: GetHTTPRequestResourceSchema(),
+		},
+		{
+			name: "should validate destroy configuration with custom delete_method POST",
+			destroy: map[string]tftypes.Value{
+				"delete_method":       stringValue("POST"),
+				"delete_path":         stringValue("/posts/$.id/archive"),
+				"delete_request_body": stringValue(`{"reason":"terraform destroy"}`),
 			},
-		}
-		resp := fresource.ValidateConfigResponse{
-			Diagnostics: make(diag.Diagnostics, 0),
-		}
+		},
+	}
 
-		// when
-		it := &HTTPRequestResource{}
-		it.ValidateConfig(context.Background(), req, &resp)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		// then
-		assert.Empty(t, resp.Diagnostics, "there should be no errors when soft delete configuration is valid")
-	})
+			// given
+			set := map[string]tftypes.Value{
+				"method":                  stringValue("POST"),
+				"path":                    stringValue("/posts"),
+				"request_body":            stringValue(`{"title":"test"}`),
+				"is_response_body_json":   boolValue(true),
+				"response_body_id_filter": stringValue("$.id"),
+				"is_delete_enabled":       boolValue(true),
+			}
+			maps.Copy(set, tc.destroy)
+			raw := resourceConfigOf(set)
+
+			// when
+			diagnostics := validateResourceConfigOf(raw)
+
+			// then
+			assert.Empty(t, diagnostics, "there should be no errors when the destroy configuration is valid")
+		})
+	}
 }
 
 func TestHTTPRequestResource_JSONPathTokenResolution(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should resolve single JSONPath token in delete_path", func(t *testing.T) {
-		t.Parallel()
+	successes := []struct {
+		name         string
+		rawPath      string
+		responseBody string
+		want         string
+	}{
+		{
+			name:         "should resolve single JSONPath token in delete_path",
+			rawPath:      "/posts/$.id",
+			responseBody: `{"id": 123, "title": "test post"}`,
+			want:         "/posts/123",
+		},
+		{
+			name:         "should resolve multiple JSONPath tokens in delete_path",
+			rawPath:      "/users/$.userId/posts/$.id",
+			responseBody: `{"id": 456, "userId": 789, "title": "test post"}`,
+			want:         "/users/789/posts/456",
+		},
+		{
+			name:         "should return original path when no JSONPath tokens present",
+			rawPath:      "/posts/123",
+			responseBody: `{"id": 123, "title": "test post"}`,
+			want:         "/posts/123",
+		},
+		{
+			name:         "should resolve nested JSONPath token",
+			rawPath:      "/posts/$.data.id",
+			responseBody: `{"data": {"id": 999}, "title": "test post"}`,
+			want:         "/posts/999",
+		},
+	}
 
-		// given
-		rawPath := "/posts/$.id"
-		responseBody := `{"id": 123, "title": "test post"}`
-		var diagnostics diag.Diagnostics
+	for _, tc := range successes {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
+			// given
+			var diagnostics diag.Diagnostics
 
-		// then
-		assert.True(t, ok, "should successfully resolve token")
-		assert.Equal(t, "/posts/123", resolved, "should replace $.id with 123")
-		assert.Empty(t, diagnostics, "should have no errors")
-	})
+			// when
+			resolved, ok := resolveDeletePathTokens(tc.rawPath, tc.responseBody, &diagnostics)
 
-	t.Run("should resolve multiple JSONPath tokens in delete_path", func(t *testing.T) {
-		t.Parallel()
+			// then
+			assert.True(t, ok, "should successfully resolve the path")
+			assert.Equal(t, tc.want, resolved, "every token should be replaced by its value")
+			assert.Empty(t, diagnostics, "should have no errors")
+		})
+	}
 
-		// given
-		rawPath := "/users/$.userId/posts/$.id"
-		responseBody := `{"id": 456, "userId": 789, "title": "test post"}`
-		var diagnostics diag.Diagnostics
+	failures := []struct {
+		name         string
+		rawPath      string
+		responseBody string
+		wantSummary  string
+	}{
+		{
+			name:         "should handle error when JSONPath token not found in response",
+			rawPath:      "/posts/$.nonexistent",
+			responseBody: `{"id": 123, "title": "test post"}`,
+			wantSummary:  "JSONPath token not found",
+		},
+		{
+			name:         "should handle error when response body is invalid JSON",
+			rawPath:      "/posts/$.id",
+			responseBody: `invalid json`,
+			wantSummary:  "unmarshall response body",
+		},
+	}
 
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
+	for _, tc := range failures {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		// then
-		assert.True(t, ok, "should successfully resolve tokens")
-		assert.Equal(t, "/users/789/posts/456", resolved, "should replace both tokens")
-		assert.Empty(t, diagnostics, "should have no errors")
-	})
+			// given
+			var diagnostics diag.Diagnostics
 
-	t.Run("should return original path when no JSONPath tokens present", func(t *testing.T) {
-		t.Parallel()
+			// when
+			resolved, ok := resolveDeletePathTokens(tc.rawPath, tc.responseBody, &diagnostics)
 
-		// given
-		rawPath := "/posts/123"
-		responseBody := `{"id": 123, "title": "test post"}`
-		var diagnostics diag.Diagnostics
-
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
-
-		// then
-		assert.True(t, ok, "should successfully process")
-		assert.Equal(t, "/posts/123", resolved, "should return original path unchanged")
-		assert.Empty(t, diagnostics, "should have no errors")
-	})
-
-	t.Run("should handle error when JSONPath token not found in response", func(t *testing.T) {
-		t.Parallel()
-
-		// given
-		rawPath := "/posts/$.nonexistent"
-		responseBody := `{"id": 123, "title": "test post"}`
-		var diagnostics diag.Diagnostics
-
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
-
-		// then
-		assert.False(t, ok, "should fail to resolve")
-		assert.Empty(t, resolved, "should return empty string on error")
-		assert.NotEmpty(t, diagnostics, "should have error diagnostics")
-		assert.Contains(
-			t,
-			diagnostics[0].Summary(),
-			"JSONPath token not found",
-			"should have appropriate error message",
-		)
-	})
-
-	t.Run("should handle error when response body is invalid JSON", func(t *testing.T) {
-		t.Parallel()
-
-		// given
-		rawPath := "/posts/$.id"
-		responseBody := `invalid json`
-		var diagnostics diag.Diagnostics
-
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
-
-		// then
-		assert.False(t, ok, "should fail to resolve")
-		assert.Empty(t, resolved, "should return empty string on error")
-		assert.NotEmpty(t, diagnostics, "should have error diagnostics")
-		assert.Contains(
-			t,
-			diagnostics[0].Summary(),
-			"unmarshall response body",
-			"should have appropriate error message",
-		)
-	})
-
-	t.Run("should resolve nested JSONPath token", func(t *testing.T) {
-		t.Parallel()
-
-		// given
-		rawPath := "/posts/$.data.id"
-		responseBody := `{"data": {"id": 999}, "title": "test post"}`
-		var diagnostics diag.Diagnostics
-
-		// when
-		resolved, ok := resolveDeletePathTokens(rawPath, responseBody, &diagnostics)
-
-		// then
-		assert.True(t, ok, "should successfully resolve nested token")
-		assert.Equal(t, "/posts/999", resolved, "should replace $.data.id with 999")
-		assert.Empty(t, diagnostics, "should have no errors")
-	})
+			// then
+			assert.False(t, ok, "should fail to resolve")
+			assert.Empty(t, resolved, "should return empty string on error")
+			require.NotEmpty(t, diagnostics, "should have error diagnostics")
+			assert.Contains(t, diagnostics[0].Summary(), tc.wantSummary, "should have appropriate error message")
+		})
+	}
 }
 
 func TestHTTPRequestResource_DestroyHelperFunctions(t *testing.T) {

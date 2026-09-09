@@ -55,6 +55,12 @@ func newResettingServer(t *testing.T, succeedFrom int32) (*httptest.Server, *ato
 	return srv, &calls
 }
 
+// The live suite's number of attempts with a backoff short enough for a test.
+const (
+	fastRetryMinDelayMs int64 = 1
+	fastRetryMaxDelayMs int64 = 2
+)
+
 // retryTestResource is the resource both cases below apply: one GET against the resetting server.
 func retryTestResource() string {
 	return builders.NewResourceTFBuilder().
@@ -75,8 +81,7 @@ func TestProviderRetryBlockReachesTheRequest(t *testing.T) {
 		config := builders.NewProviderTFBuilder().
 			WithURL(srv.URL).
 			WithRequestTimeoutMs(liveRequestTimeoutMs).
-			// The live suite's attempts with a backoff short enough for a test.
-			WithRetry(liveRetryAttempts, 1, 2).
+			WithRetry(liveRetryAttempts, fastRetryMinDelayMs, fastRetryMaxDelayMs).
 			Build() + retryTestResource()
 
 		// when
