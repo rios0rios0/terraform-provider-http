@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `make lint` — runs golangci-lint via the pipelines project's shared config
 - `make lint-fix` — lint with auto-fix
 - `make docs` — generates Terraform plugin docs (requires `terraform` in PATH; may need `export GOBIN=$PWD/bin && export PATH=$GOBIN:$PATH`)
+- `docs/` is generated and must never be edited by hand: `make docs` overwrites it. Hand-written prose for the provider page lives in `templates/index.md.tmpl` (the generator's default template plus the extra sections) and example code, comments included, in `examples/`. After any schema or example change, run `make docs` and commit the result; a clean `git diff docs/` after `make docs` is the check that nothing was lost.
 - `make semgrep` / `make gitleaks` — security scanning via pipelines scripts
 
 VERSION is auto-detected from the latest git tag (`git describe --tags --abbrev=0`), falling back to `dev`.

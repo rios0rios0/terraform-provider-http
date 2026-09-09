@@ -14,6 +14,7 @@ Always reference these instructions first and fall back to search or bash comman
 - `make install` -- builds and installs provider locally for testing. Takes ~1 second.
 - `make test` -- runs full test suite with coverage: the untagged unit tests first, then the `integration`-tagged acceptance tests, which drive a real Terraform binary and partly hit the network. Takes ~3 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
 - `make docs` -- generates provider documentation. Takes ~2 seconds. NEVER CANCEL.
+- `docs/` is generated output: never edit it by hand. The provider page renders from `templates/index.md.tmpl` and the examples from `examples/`; put prose and comments there, then run `make docs` and commit the result
 - `make lint` -- runs comprehensive linting using golangci-lint. Takes ~1 minute. NEVER CANCEL.
 - `make lint-fix` -- runs linting and automatically fixes issues where possible.
 

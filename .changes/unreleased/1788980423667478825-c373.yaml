@@ -1,0 +1,3 @@
+kind: 'Fixed'
+body: 'fixed `make docs` deleting the hand-written "Rotating credentials" section of `docs/index.md` and the write-only note in the `http_request` example of `docs/resources/request.md`: the prose lived only in the generated files, so the provider page now renders from `templates/index.md.tmpl` and the note from `examples/resources/http_request/resource.tf`, and regenerating the docs is a no-op again'
+time: '2026-09-09T19:00:23.667404914Z'
