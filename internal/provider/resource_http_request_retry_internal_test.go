@@ -1,5 +1,3 @@
-//go:build unit || integration
-
 package provider
 
 import (
@@ -238,26 +236,29 @@ func TestGetHTTPClientTransportReuse(t *testing.T) {
 			"the provider transport must be reused so the connection pool is shared across requests")
 	})
 
-	t.Run("should allocate a fresh transport when a resource overrides ignore_tls from false to true", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"should allocate a fresh transport when a resource overrides ignore_tls from false to true",
+		func(t *testing.T) {
+			t.Parallel()
 
-		// given: a provider that verifies TLS has no insecure transport to reuse
-		internal := entities.NewInternalContext(false, entities.NewConfiguration(""))
-		it := &HTTPRequestResource{internal: internal}
-		model := HTTPRequestResourceModel{
-			IgnoreTLS:        types.BoolValue(true),
-			RequestTimeoutMs: types.Int64Null(),
-			Retry:            types.ObjectNull(retryObjectAttrTypes()),
-		}
+			// given: a provider that verifies TLS has no insecure transport to reuse
+			internal := entities.NewInternalContext(false, entities.NewConfiguration(""))
+			it := &HTTPRequestResource{internal: internal}
+			model := HTTPRequestResourceModel{
+				IgnoreTLS:        types.BoolValue(true),
+				RequestTimeoutMs: types.Int64Null(),
+				Retry:            types.ObjectNull(retryObjectAttrTypes()),
+			}
 
-		// when
-		client := it.getHTTPClient(context.Background(), model)
+			// when
+			client := it.getHTTPClient(context.Background(), model)
 
-		// then
-		transport, ok := client.Transport.(*http.Transport)
-		require.True(t, ok, "a fresh *http.Transport must be created for the resource-level override")
-		require.NotNil(t, transport.TLSClientConfig)
-		assert.True(t, transport.TLSClientConfig.InsecureSkipVerify,
-			"the new transport must skip verification per the resource override")
-	})
+			// then
+			transport, ok := client.Transport.(*http.Transport)
+			require.True(t, ok, "a fresh *http.Transport must be created for the resource-level override")
+			require.NotNil(t, transport.TLSClientConfig)
+			assert.True(t, transport.TLSClientConfig.InsecureSkipVerify,
+				"the new transport must skip verification per the resource override")
+		},
+	)
 }

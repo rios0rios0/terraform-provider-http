@@ -64,6 +64,24 @@ func (b *ProviderTFBuilder) WithIgnoreTLS(ignoreTLS bool) *ProviderTFBuilder {
 	return b
 }
 
+// WithRequestTimeoutMs bounds every request the provider makes to the given number of
+// milliseconds.
+func (b *ProviderTFBuilder) WithRequestTimeoutMs(timeoutMs int64) *ProviderTFBuilder {
+	b.config += fmt.Sprintf("request_timeout_ms = %d\n", timeoutMs)
+	return b
+}
+
+// WithRetry renders the provider-level `retry` block. The provider retries connection errors and
+// 5xx responses (except 501) with an exponential backoff bounded by the two delays, which is what
+// lets a suite that talks to a public endpoint survive a dropped connection.
+func (b *ProviderTFBuilder) WithRetry(attempts, minDelayMs, maxDelayMs int64) *ProviderTFBuilder {
+	b.config += fmt.Sprintf(
+		"retry {\n  attempts = %d\n  min_delay_ms = %d\n  max_delay_ms = %d\n}\n",
+		attempts, minDelayMs, maxDelayMs,
+	)
+	return b
+}
+
 func (b *ProviderTFBuilder) Build() string {
 	return fmt.Sprintf(baseProviderTF, b.config)
 }

@@ -1,42 +1,16 @@
-//go:build unit || integration
-
 package provider
 
 import (
 	"context"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"regexp"
-	"testing"
 )
-
-var (
-	/*
-		This factory is barely used to create the block "terraform.required_providers" in the Terraform configuration
-	*/
-	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-		"http": providerserver.NewProtocol6WithError(New("test")()),
-	}
-)
-
-func testAccPreCheck(_ *testing.T) {
-	err := os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "rios0rios0")
-	if err != nil {
-		return
-	}
-
-	// You can add code here to run prior to any test case execution, for example assertions
-	// about the appropriate environment variables being set are common to see in a pre-check
-	// function.
-}
 
 // fullProviderType returns the complete provider object type used by the
 // ValidateConfig tests, keeping the (otherwise duplicated) builder chain in one place.
@@ -131,77 +105,12 @@ func validateConfigOf(raw tftypes.Value) diag.Diagnostics {
 	return resp.Diagnostics
 }
 
-func TestHTTPProvider(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should work when the URL is missing at provider level but provided at resource level", func(t *testing.T) {
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: builders.NewProviderTFBuilder().Build() +
-						builders.NewResourceTFBuilder().
-							WithName("test1").
-							WithMethod("GET").
-							WithPath("/posts/1").
-							WithBaseURL("https://jsonplaceholder.typicode.com").
-							Build(),
-					Check: resource.ComposeAggregateTestCheckFunc(
-						resource.TestCheckResourceAttr("http_request.test1", "response_code", "200"),
-					),
-				},
-			},
-		})
-	})
-
-	t.Run("should return an error when the 'username' is missing with 'basic_auth'", func(t *testing.T) {
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: builders.NewProviderTFBuilder().
-						WithURL("https://jsonplaceholder.typicode.com").
-						WithPassword("anything").
-						Build() +
-						builders.NewResourceTFBuilder().
-							WithName("test1").
-							WithMethod("GET").
-							WithPath("/posts/1").
-							Build(),
-					ExpectError: regexp.MustCompile("Inappropriate value for attribute \"basic_auth\": attribute \"username\" is"),
-				},
-			},
-		})
-	})
-
-	t.Run("should return an error when the 'password' is missing with 'basic_auth'", func(t *testing.T) {
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:                 func() { testAccPreCheck(t) },
-			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: builders.NewProviderTFBuilder().
-						WithURL("https://jsonplaceholder.typicode.com").
-						WithUsername("anything").
-						Build() +
-						builders.NewResourceTFBuilder().
-							WithName("test1").
-							WithMethod("GET").
-							WithPath("/posts/1").
-							Build(),
-					ExpectError: regexp.MustCompile("Inappropriate value for attribute \"basic_auth\": attribute \"password\" is"),
-				},
-			},
-		})
-	})
-}
-
 func TestHTTPProvider_ValidateConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should not throw any error when the URL is set", func(t *testing.T) {
+		t.Parallel()
+
 		// given
 		raw := tftypes.NewValue(fullProviderType(), fullProviderValues(
 			tftypes.NewValue(tftypes.String, "https://jsonplaceholder.typicode.com"),
@@ -212,25 +121,32 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		diagnostics := validateConfigOf(raw)
 
 		// then
-		assert.Equal(t, 0, len(diagnostics), "there's no error since the URL is set")
+		assert.Empty(t, diagnostics, "there's no error since the URL is set")
 		assert.Equal(t, diag.Diagnostics{}, diagnostics, "Diagnostic is empty since the URL is set")
 	})
 
-	t.Run("should not throw an error when the URL was not set since it can be provided at resource level", func(t *testing.T) {
-		// given
-		raw := tftypes.NewValue(fullProviderType(), fullProviderValues(
-			tftypes.NewValue(tftypes.String, nil),
-			nullBasicAuthValue(),
-		))
+	t.Run(
+		"should not throw an error when the URL was not set since it can be provided at resource level",
+		func(t *testing.T) {
+			t.Parallel()
 
-		// when
-		diagnostics := validateConfigOf(raw)
+			// given
+			raw := tftypes.NewValue(fullProviderType(), fullProviderValues(
+				tftypes.NewValue(tftypes.String, nil),
+				nullBasicAuthValue(),
+			))
 
-		// then
-		assert.Equal(t, 0, len(diagnostics), "there's no error since URL can be provided at resource level")
-	})
+			// when
+			diagnostics := validateConfigOf(raw)
+
+			// then
+			assert.Empty(t, diagnostics, "there's no error since URL can be provided at resource level")
+		},
+	)
 
 	t.Run("should throw an error when the schema was not properly set", func(t *testing.T) {
+		t.Parallel()
+
 		// given: a type naming only `url`, against the full provider schema
 		raw := tftypes.NewValue(
 			builders.NewProviderTypeBuilder().WithURL().Build(),
@@ -243,14 +159,21 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		diagnostics := validateConfigOf(raw)
 
 		// then
-		assert.Equal(t, 1, len(diagnostics), "there's an error since provider schema wasn't properly set")
+		assert.Len(t, diagnostics, 1, "there's an error since provider schema wasn't properly set")
 		assert.Equal(t, "Value Conversion Error", diagnostics[0].Summary(), "the summary error message is correct")
-		assert.Contains(t, diagnostics[0].Detail(), "defines fields not found in object", "the detail error message is correct")
+		assert.Contains(
+			t,
+			diagnostics[0].Detail(),
+			"defines fields not found in object",
+			"the detail error message is correct",
+		)
 		assert.Contains(t, diagnostics[0].Detail(), "basic_auth", "the detail error message contains the missing field")
 		assert.Contains(t, diagnostics[0].Detail(), "ignore_tls", "the detail error message contains the missing field")
 	})
 
 	t.Run("should throw an error when the 'basic_auth' was set but 'username' was not set", func(t *testing.T) {
+		t.Parallel()
+
 		// given
 		password := "pass"
 		raw := tftypes.NewValue(fullProviderType(), fullProviderValues(
@@ -262,11 +185,13 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		diagnostics := validateConfigOf(raw)
 
 		// then
-		assert.Equal(t, 1, len(diagnostics), "there's an error since the username is not set")
+		assert.Len(t, diagnostics, 1, "there's an error since the username is not set")
 		assert.Equal(t, "Unknown username for HTTP client", diagnostics[0].Summary(), "the error message is correct")
 	})
 
 	t.Run("should throw an error when the 'basic_auth' was set but 'password' was not set", func(t *testing.T) {
+		t.Parallel()
+
 		// given
 		username := "user"
 		raw := tftypes.NewValue(fullProviderType(), fullProviderValues(
@@ -278,7 +203,7 @@ func TestHTTPProvider_ValidateConfig(t *testing.T) {
 		diagnostics := validateConfigOf(raw)
 
 		// then
-		assert.Equal(t, 1, len(diagnostics), "there's an error since the password is not set")
+		assert.Len(t, diagnostics, 1, "there's an error since the password is not set")
 		assert.Equal(t, "Unknown password for HTTP client", diagnostics[0].Summary(), "the error message is correct")
 	})
 }

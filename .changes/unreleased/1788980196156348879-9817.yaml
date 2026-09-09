@@ -1,0 +1,3 @@
+kind: 'Fixed'
+body: 'fixed the `POST` update acceptance test silently passing on any error: its `ErrorCheck` discarded every error, so a failing apply or plan never failed the test'
+time: '2026-09-09T18:56:36.156253762Z'

@@ -38,7 +38,8 @@ Terraform provider using the Plugin Framework (not the older SDK). Follows a DDD
 - `ignore_tls` (provider and resource level) is the only thing that builds an `InsecureSkipVerify` transport. It defaults to `false`, is never enabled implicitly, and every request that skips verification logs a WARN entry. SonarCloud's go:S4830 / go:S5527 findings on those two sites are accepted in `sonar-project.properties` -- do not "fix" them by removing the option.
 - `Makefile` targets delegate to scripts in the external `rios0rios0/pipelines` repo (cloned to `~/Development/github.com/rios0rios0/pipelines`).
 - CI runs `rios0rios0/pipelines/.github/workflows/go-binary.yaml@main`. Releases use GoReleaser with GPG signing on `v*` tags.
-- Tests hit `jsonplaceholder.typicode.com` for integration testing. Acceptance tests need `TF_ACC_PROVIDER_NAMESPACE=rios0rios0`.
+- Test build tags: acceptance tests (anything driving `resource.UnitTest`, which needs a Terraform binary) carry `//go:build integration`; unit tests carry no build tag at all. Internal-package unit test files are named `*_internal_test.go`, which is how the `testpackage` linter accepts them. `make lint` runs without build tags, so integration-tagged files are never linted.
+- The acceptance tests in `resource_http_request_test.go` and `provider_integration_test.go` hit `jsonplaceholder.typicode.com` for real, and need `TF_ACC_PROVIDER_NAMESPACE=rios0rios0`. Every provider block they render comes from `liveProvider()` in `acceptance_test.go`, which adds a `request_timeout_ms` and a `retry` block: the endpoint sits behind a CDN that now and then resets a connection mid-request, and the provider only retries when asked to, so without that block one reset fails the whole run. `resource_http_request_retry_integration_test.go` pins the mechanism against a local server that resets connections.
 
 ## Requirements
 

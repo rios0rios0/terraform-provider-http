@@ -1,5 +1,3 @@
-//go:build unit || integration
-
 package provider
 
 import (
