@@ -23,6 +23,22 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.7.3] - 2026-09-10
+
+### Changed
+
+- changed the Go module dependencies to their latest versions
+
+### Fixed
+
+- fixed `make docs` deleting the hand-written "Rotating credentials" section of `docs/index.md` and the write-only note in the `http_request` example of `docs/resources/request.md`: the prose lived only in the generated files, so the provider page now renders from `templates/index.md.tmpl` and the note from `examples/resources/http_request/resource.tf`, and regenerating the docs is a no-op again
+- fixed the `POST` update acceptance test silently passing on any error: its `ErrorCheck` discarded every error, so a failing apply or plan never failed the test
+- fixed the live acceptance suite failing on a single dropped connection to `jsonplaceholder.typicode.com`: every provider block the suite renders now comes from `liveProvider()` in `acceptance_test.go` and carries a `request_timeout_ms` and a `retry` block, so a transient `connection reset by peer` is retried instead of failing the run, and added `WithRetry`/`WithRequestTimeoutMs` to the provider configuration builder plus an acceptance test proving a provider-level `retry` block replays a request the server reset
+
+### Removed
+
+- removed the `unit` build tag from the unit test files so a plain `go test ./...` and `make lint` see them: unit tests carry no build tag, acceptance tests keep `//go:build integration`, the internal-package unit files were renamed to `*_internal_test.go` for the `testpackage` linter, the pure unit tests that lived in the integration-tagged `resource_http_request_test.go` moved to `resource_http_request_internal_test.go`, and the `testifylint`, `tparallel` and `golines` findings the newly visible files surfaced were fixed
+
 ## [3.7.2] - 2026-09-09
 
 ### Changed
@@ -154,63 +170,21 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Added
 
-- added a provider-level `headers` map, sent on every request the provider makes and applied BEFORE
-  each resource's own `headers`, so a resource naming the same header still overrides it. The
-  override is case-insensitive because header names are: `http.Header.Set` canonicalises the name,
-  so the two sides cannot disagree by casing alone. Merging is per header rather than
-  all-or-nothing, so declaring resource headers does not discard the provider's, and the map is
-  marked `Sensitive` because this is where a credential belongs when an API wants one in a header
-  rather than in `basic_auth`
-- added it because an import cannot authenticate any other way. A resource created with an unsafe
-  method names `import_read_path` so the provider force-GETs the object instead of replaying the
-  `POST` that would create a second one -- but `ImportState` is handed the import identifier and
-  nothing else, since Terraform never shows it the configuration, so that GET is built from the
-  identifier alone. An identifier deliberately omits `headers` (that is what keeps them adoptable:
-  one that spells them out loses the in-place adoption and risks a `RequiresReplace` on the first
-  plan), so a bearer token kept in the resource's `headers` is unavailable exactly when the import
-  read needs it, and an API that authenticates through a header answers `401`. The remaining option
-  was to spell the credential into the identifier, which works and prints it wherever plan output
-  goes -- plan logs, review comments -- so there was no way to import against such an API without
-  leaking the token. A provider-level header is the only place it can live and still be sent
-- added the merge at the single point every request is built, so create, read, refresh, destroy and
-  the import read are all covered by one call. The destroy is worth naming separately: it sends
-  `delete_headers`, so a resource that declares none previously had no credential for its own
-  teardown
-- added no environment-variable equivalent, unlike the `basic_auth` scalars. A map has no
-  unambiguous encoding for one, and the values belong in a Terraform variable; this is stated in the
-  attribute description rather than left to be discovered
-- added `TestProviderHeadersReachTheImportRead` and `TestProviderHeadersReachTheDestroyRequest`,
-  which run against an `httptest` server that answers `401` to any request without the expected
-  bearer, so a regression fails on the provider's own error rather than on a subtle assertion. Both
-  were confirmed to fail without the feature, reproducing `Error performing HTTP request. Not
-  expected status code... Response code: 401 Unauthorized`. Seven unit tests cover the merge itself:
-  provider-only, resource override, case-insensitive override, per-header merge, the empty map, a
-  provider `Content-Type` surviving the JSON defaults, and an unconfigured provider
-- added nothing to the resource schema, so there is no state migration and no new upgrader: this is
-  provider configuration, which has neither. Nothing is written to state, and no existing
-  configuration changes behaviour -- the map is optional and absent by default
+- added `TestProviderHeadersReachTheImportRead` and `TestProviderHeadersReachTheDestroyRequest`, which run against an `httptest` server that answers `401` to any request without the expected bearer, so a regression fails on the provider's own error rather than on a subtle assertion. Both were confirmed to fail without the feature, reproducing `Error performing HTTP request. Not expected status code... Response code: 401 Unauthorized`. Seven unit tests cover the merge itself: provider-only, resource override, case-insensitive override, per-header merge, the empty map, a provider `Content-Type` surviving the JSON defaults, and an unconfigured provider
+- added a provider-level `headers` map, sent on every request the provider makes and applied BEFORE each resource's own `headers`, so a resource naming the same header still overrides it. The override is case-insensitive because header names are: `http.Header.Set` canonicalises the name, so the two sides cannot disagree by casing alone. Merging is per header rather than all-or-nothing, so declaring resource headers does not discard the provider's, and the map is marked `Sensitive` because this is where a credential belongs when an API wants one in a header rather than in `basic_auth`
+- added it because an import cannot authenticate any other way. A resource created with an unsafe method names `import_read_path` so the provider force-GETs the object instead of replaying the `POST` that would create a second one -- but `ImportState` is handed the import identifier and nothing else, since Terraform never shows it the configuration, so that GET is built from the identifier alone. An identifier deliberately omits `headers` (that is what keeps them adoptable: one that spells them out loses the in-place adoption and risks a `RequiresReplace` on the first plan), so a bearer token kept in the resource's `headers` is unavailable exactly when the import read needs it, and an API that authenticates through a header answers `401`. The remaining option was to spell the credential into the identifier, which works and prints it wherever plan output goes -- plan logs, review comments -- so there was no way to import against such an API without leaking the token. A provider-level header is the only place it can live and still be sent
+- added no environment-variable equivalent, unlike the `basic_auth` scalars. A map has no unambiguous encoding for one, and the values belong in a Terraform variable; this is stated in the attribute description rather than left to be discovered
+- added nothing to the resource schema, so there is no state migration and no new upgrader: this is provider configuration, which has neither. Nothing is written to state, and no existing configuration changes behaviour -- the map is optional and absent by default
+- added the merge at the single point every request is built, so create, read, refresh, destroy and the import read are all covered by one call. The destroy is worth naming separately: it sends `delete_headers`, so a resource that declares none previously had no credential for its own teardown
 
 ### Changed
 
 - changed the `ValidateConfig` tests to build their provider value through `fullProviderValues`,
-- changed the Go module dependencies to their latest versions
-  `basicAuthValue` and `validateConfigOf` instead of spelling the whole six-attribute object out per
-  case. Each of the four cases repeated all six attributes, so adding one attribute meant editing
-  four near-identical blocks -- which is what turned pre-existing duplication into NEW-code
-  duplication and failed the quality gate at `6.7%` against a `3%` ceiling. The new header tests got
-  the same treatment through `resourceHeaderMap` and `buildTestRequest`, leaving each case holding
-  only its own given and then. No behaviour change: every assertion is the one it was before, and it
-  is a net 45 lines shorter
+- changed the Go module dependencies to their latest versions `basicAuthValue` and `validateConfigOf` instead of spelling the whole six-attribute object out per case. Each of the four cases repeated all six attributes, so adding one attribute meant editing four near-identical blocks -- which is what turned pre-existing duplication into NEW-code duplication and failed the quality gate at `6.7%` against a `3%` ceiling. The new header tests got the same treatment through `resourceHeaderMap` and `buildTestRequest`, leaving each case holding only its own given and then. No behaviour change: every assertion is the one it was before, and it is a net 45 lines shorter
 
 ### Fixed
 
-- fixed a latent nil-pointer dereference in the provider-level `basic_auth` fallback, which read
-  `internal.Config` unguarded. Terraform sets provider data AFTER the `ConfigureProvider` RPC and
-  `Configure` returns early while it is absent, so the field is reachable as nil -- `Configure`
-  already checks for exactly that. Every consumer of the provider configuration now reads it through
-  one nil-safe accessor, and `HasAuthentication` tolerates a nil receiver. Found by the unit test
-  written for the new attribute, which segfaulted on the pre-existing line rather than on the new
-  one
+- fixed a latent nil-pointer dereference in the provider-level `basic_auth` fallback, which read `internal.Config` unguarded. Terraform sets provider data AFTER the `ConfigureProvider` RPC and `Configure` returns early while it is absent, so the field is reachable as nil -- `Configure` already checks for exactly that. Every consumer of the provider configuration now reads it through one nil-safe accessor, and `HasAuthentication` tolerates a nil receiver. Found by the unit test written for the new attribute, which segfaulted on the pre-existing line rather than on the new one
 
 ## [3.4.2] - 2026-08-04
 
@@ -228,55 +202,22 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Added
 
-- added import adoption, so importing a resource never destroys and recreates it. Terraform does
-  not show a configuration to a provider during import, so an identifier that omits arguments
-  produces a state that differs from the HCL, and that difference used to land on the
-  `RequiresReplace` rules. The provider now records what the identifier left unsaid and adopts
-  those values from the configuration on the first apply -- in place, without sending any HTTP
-  request, and with a warning naming exactly what was adopted. Neither `terraform state rm` nor a
-  `lifecycle` block is needed any more
-- added five import identifier formats alongside the existing `<id>/<base64>` pair: a bare path
-  (`/posts/1`, the method defaults to `GET`), a method and path (`POST /posts`), raw JSON, a JSON
-  file reference (`@./import.json`), and a bare base64 payload. Each is distinguished by its first
-  character, so no identifier can be read as two different forms. Only `method` and `path` are ever
-  required
-- added resource identity, so Terraform `1.12` and later can import with
-  `import { identity = { method = ..., path = ... } }` instead of a stringly-typed identifier
-- added `import_id`, a computed attribute holding the identifier that re-imports the resource with
-  the arguments it was applied with. Neither `basic_auth` nor the captured response is encoded into
-  it: a response body is often the most sensitive thing the resource holds and is already in state
-  under its own attribute, so embedding a copy would leak it wherever the identifier is pasted and
-  inflate the state for nothing. A re-import captures a current response instead, and for a method
-  that cannot be replayed the resolved `refresh_path` travels as `import_read_path` so it still can
-- added a live read during import: for `GET` and `HEAD` the endpoint is read so `response_code`,
-  `response_body`, `response_body_id`, `response_body_json` and `delete_resolved_path` are captured
-  from the real API. `POST`, `PUT`, `PATCH` and `DELETE` are never replayed, because re-sending one
-  would repeat its side effect; the new `import_read_path` payload key names an object to `GET`
-  instead. This is what makes a `delete_path` carrying JSONPath tokens resolvable after an import
-- added opt-in drift detection through `is_refresh_enabled` and `refresh_path`, replacing the `Read`
-  method that had been a no-op. When enabled, every refresh re-reads the resource and updates the
-  captured response; a response that is neither successful nor tolerated removes the resource from
-  state so it is planned for creation again. It is off by default, so no existing configuration
-  changes behaviour
+- added `import_id`, a computed attribute holding the identifier that re-imports the resource with the arguments it was applied with. Neither `basic_auth` nor the captured response is encoded into it: a response body is often the most sensitive thing the resource holds and is already in state under its own attribute, so embedding a copy would leak it wherever the identifier is pasted and inflate the state for nothing. A re-import captures a current response instead, and for a method that cannot be replayed the resolved `refresh_path` travels as `import_read_path` so it still can
+- added a live read during import: for `GET` and `HEAD` the endpoint is read so `response_code`, `response_body`, `response_body_id`, `response_body_json` and `delete_resolved_path` are captured from the real API. `POST`, `PUT`, `PATCH` and `DELETE` are never replayed, because re-sending one would repeat its side effect; the new `import_read_path` payload key names an object to `GET` instead. This is what makes a `delete_path` carrying JSONPath tokens resolvable after an import
+- added five import identifier formats alongside the existing `<id>/<base64>` pair: a bare path (`/posts/1`, the method defaults to `GET`), a method and path (`POST /posts`), raw JSON, a JSON file reference (`@./import.json`), and a bare base64 payload. Each is distinguished by its first character, so no identifier can be read as two different forms. Only `method` and `path` are ever required
+- added import adoption, so importing a resource never destroys and recreates it. Terraform does not show a configuration to a provider during import, so an identifier that omits arguments produces a state that differs from the HCL, and that difference used to land on the `RequiresReplace` rules. The provider now records what the identifier left unsaid and adopts those values from the configuration on the first apply -- in place, without sending any HTTP request, and with a warning naming exactly what was adopted. Neither `terraform state rm` nor a `lifecycle` block is needed any more
+- added opt-in drift detection through `is_refresh_enabled` and `refresh_path`, replacing the `Read` method that had been a no-op. When enabled, every refresh re-reads the resource and updates the captured response; a response that is neither successful nor tolerated removes the resource from state so it is planned for creation again. It is off by default, so no existing configuration changes behaviour
+- added resource identity, so Terraform `1.12` and later can import with `import { identity = { method = ..., path = ... } }` instead of a stringly-typed identifier
 
 ### Changed
 
-- changed the resource schema to version `3` and added a `2` to `3` upgrader carrying the new
-  attributes as typed nulls, following the precedent set by the version `0` upgrader
-- changed the import identifier documentation and examples to emit URL-safe, unpadded base64, which
-  cannot contain the `/` separator
+- changed the import identifier documentation and examples to emit URL-safe, unpadded base64, which cannot contain the `/` separator
+- changed the resource schema to version `3` and added a `2` to `3` upgrader carrying the new attributes as typed nulls, following the precedent set by the version `0` upgrader
 
 ### Fixed
 
-- fixed import rejecting any `<id>/<base64>` identifier whose payload contained a `/`. The standard
-  base64 alphabet includes that character, so a request path with a query string was enough to
-  produce one; the identifier was split into three parts and refused outright. The split is now
-  bounded to two segments, and standard, URL-safe, padded and unpadded base64 are all accepted
-- fixed imported state recording `is_response_body_json` as `false` when the identifier omitted it.
-  A configuration that also omits the argument leaves it null, so the two disagreed and the first
-  plan after an import destroyed and recreated the resource. Omitted arguments now stay null, and
-  an explicit `false` stays distinguishable from an absent one -- the same fix applies to
-  `ignore_tls`, `is_delete_enabled` and `response_code`
+- fixed import rejecting any `<id>/<base64>` identifier whose payload contained a `/`. The standard base64 alphabet includes that character, so a request path with a query string was enough to produce one; the identifier was split into three parts and refused outright. The split is now bounded to two segments, and standard, URL-safe, padded and unpadded base64 are all accepted
+- fixed imported state recording `is_response_body_json` as `false` when the identifier omitted it. A configuration that also omits the argument leaves it null, so the two disagreed and the first plan after an import destroyed and recreated the resource. Omitted arguments now stay null, and an explicit `false` stays distinguishable from an absent one -- the same fix applies to `ignore_tls`, `is_delete_enabled` and `response_code`
 
 ## [3.3.9] - 2026-07-30
 
@@ -286,15 +227,8 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ### Fixed
 
-- fixed `response_body_id`, `delete_resolved_path` and `response_body_json` recording whole JSON
-  numbers in scientific notation (an id of `803554429` became `8.03554429e+08`), which broke every
-  consumer that interpolated the value back into a request -- most visibly `delete_path`, leaving
-  affected resources impossible to destroy. Whole numbers within the exactly-representable float64
-  range are now rendered positionally; fractional numbers, booleans, strings and JSON null keep
-  their previous rendering
-- fixed already-written state carrying the notation above: the resource schema moves to version 2
-  and a state upgrader rewrites the three attributes in place, driven by the numbers in each
-  resource's own recorded `response_body` so nothing is guessed
+- fixed `response_body_id`, `delete_resolved_path` and `response_body_json` recording whole JSON numbers in scientific notation (an id of `803554429` became `8.03554429e+08`), which broke every consumer that interpolated the value back into a request -- most visibly `delete_path`, leaving affected resources impossible to destroy. Whole numbers within the exactly-representable float64 range are now rendered positionally; fractional numbers, booleans, strings and JSON null keep their previous rendering
+- fixed already-written state carrying the notation above: the resource schema moves to version 2 and a state upgrader rewrites the three attributes in place, driven by the numbers in each resource's own recorded `response_body` so nothing is guessed
 
 ## [3.3.8] - 2026-07-28
 
