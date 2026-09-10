@@ -1,3 +1,0 @@
-kind: 'Changed'
-body: 'removed the `unit` build tag from the unit test files so a plain `go test ./...` and `make lint` see them: unit tests carry no build tag, acceptance tests keep `//go:build integration`, the internal-package unit files were renamed to `*_internal_test.go` for the `testpackage` linter, the pure unit tests that lived in the integration-tagged `resource_http_request_test.go` moved to `resource_http_request_internal_test.go`, and the `testifylint`, `tparallel` and `golines` findings the newly visible files surfaced were fixed'
-time: '2026-09-09T18:56:36.153245131Z'
