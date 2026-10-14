@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/rios0rios0/terraform-provider-http/v3/test/infrastructure/builders"
 )
 
 // newResettingServer answers every request before the given one by dropping the TCP connection

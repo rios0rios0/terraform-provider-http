@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/rios0rios0/terraform-provider-http/v3/test/infrastructure/builders"
 )
 
 // The acceptance harness shared by every test in this package that drives a real Terraform binary

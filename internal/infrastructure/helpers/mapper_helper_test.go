@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/infrastructure/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

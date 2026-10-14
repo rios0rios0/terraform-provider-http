@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/rios0rios0/terraform-provider-http/v3/test/infrastructure/builders"
 )
 
 // importTracker counts the calls a test server receives, so a test can prove that adopting a

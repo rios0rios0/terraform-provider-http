@@ -1,4 +1,4 @@
-module github.com/rios0rios0/terraform-provider-http
+module github.com/rios0rios0/terraform-provider-http/v3
 
 go 1.27.2
 

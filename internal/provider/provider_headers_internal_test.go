@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/domain/entities"
 )
 
 // resourceWithProviderHeaders builds a resource whose provider configuration carries the given

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/rios0rios0/terraform-provider-http/v3/test/infrastructure/builders"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"

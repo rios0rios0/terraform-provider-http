@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/domain/entities"
 )
 
 const (

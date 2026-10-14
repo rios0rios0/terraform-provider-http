@@ -5,7 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/rios0rios0/terraform-provider-http/internal/provider"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/provider"
 	"github.com/stretchr/testify/assert"
 )
 
