@@ -23,6 +23,21 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.7.9] - 2026-10-14
+
+### Changed
+
+- changed the Go module `golang.org/x/net` from `v0.59.0` to `v0.61.0`
+- changed the Go module `golang.org/x/tools` from `v0.51.0` to `v0.52.0`
+- changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261005182115-fad411399dd8` to `v0.0.0-20261012220534-4341edf3f941`
+- changed the Go modules `github.com/hashicorp/terraform-json` from `v0.28.0` to `v0.29.0` and `github.com/mattn/go-colorable` from `v0.1.15` to `v0.1.16`
+- changed the Go modules `golang.org/x/crypto` from `v0.57.0` to `v0.58.0`, `golang.org/x/mod` from `v0.41.0` to `v0.42.0`, `golang.org/x/sync` from `v0.23.0` to `v0.24.0`, `golang.org/x/sys` from `v0.48.0` to `v0.49.0` and `golang.org/x/text` from `v0.42.0` to `v0.43.0`
+- changed the Go version from `1.27.1` to `1.27.2`
+
+### Fixed
+
+- fixed the Go module path to `github.com/rios0rios0/terraform-provider-http/v3`, which Go requires of a v3 release and without which `go get` could not resolve it: import its packages from `github.com/rios0rios0/terraform-provider-http/v3/...` instead of `github.com/rios0rios0/terraform-provider-http/...`
+
 ## [3.7.8] - 2026-10-07
 
 ### Changed

@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/infrastructure/helpers"
 )
 
 // importAdoptPrivateKey is the private-state key holding the pending adoption, written by

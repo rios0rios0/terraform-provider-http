@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/rios0rios0/terraform-provider-http/internal/provider"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/provider"
 )
 
 // According to Terraform SDK documentation, the `main.go` should be on the root of the project.

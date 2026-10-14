@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/rios0rios0/terraform-provider-http/test/infrastructure/builders"
+	"github.com/rios0rios0/terraform-provider-http/v3/test/infrastructure/builders"
 )
 
 // fixtureBearer is a placeholder, not a credential shape any scanner recognises.

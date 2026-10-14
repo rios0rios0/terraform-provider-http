@@ -29,8 +29,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/ohler55/ojg/jp"
-	"github.com/rios0rios0/terraform-provider-http/internal/domain/entities"
-	"github.com/rios0rios0/terraform-provider-http/internal/infrastructure/helpers"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/domain/entities"
+	"github.com/rios0rios0/terraform-provider-http/v3/internal/infrastructure/helpers"
 )
 
 // Package-level regex for JSONPath token resolution, compiled once during package initialization.
