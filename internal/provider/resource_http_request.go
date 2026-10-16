@@ -861,11 +861,6 @@ func (it *HTTPRequestResource) Update(
 		return
 	}
 
-	// Both paths below that keep the captured response write the plan through, so the response
-	// has to sit where the flag puts it. ModifyPlan already placed it when the flag was known;
-	// placing it again from state is a no-op then, and settles a flag that was unknown until now.
-	carryCapturedResponse(stateModel, &planModel)
-
 	// An adoption left over from an import is settled first, and without touching the remote
 	// resource. The state came from an import identifier that did not spell every argument out,
 	// so the difference against configuration describes the gap in that identifier, not a change
@@ -880,6 +875,7 @@ func (it *HTTPRequestResource) Update(
 	}
 
 	if adopt != nil {
+		settleKeptResponse(ctx, stateModel, &planModel, &resp.Diagnostics)
 		it.adoptConfiguration(ctx, req, resp, planModel)
 
 		return
@@ -893,6 +889,8 @@ func (it *HTTPRequestResource) Update(
 	// case the plan already carries the captured response forward via UseStateForUnknown,
 	// so persist it unchanged instead of producing an inconsistent result after apply.
 	if !RequestAttributesChanged(planModel, stateModel) {
+		settleKeptResponse(ctx, stateModel, &planModel, &resp.Diagnostics)
+
 		// Write-only delete-control attributes are nullified in plan and state, so re-read
 		// them from config (as Create does) and refresh them into private state. Skipping
 		// this would leave a later Destroy running with stale delete configuration when only
@@ -1000,9 +998,9 @@ func (it *HTTPRequestResource) ModifyPlan(
 		}
 	}
 
-	// A pending import adoption is settled in place, so the captured response is kept exactly as
-	// imported and none of the computed attributes may be marked unknown -- Update writes the plan
-	// through untouched, and an unknown left here would fail apply as an inconsistent result.
+	// A pending import adoption is settled in place, so the captured response is kept as imported.
+	// Update writes the plan through, so the only computed attributes left unknown here are the
+	// ones settleKeptResponse works out at apply time.
 	adopt, diags := unmarshalImportAdoptFromPrivate(ctx, req.Private)
 	resp.Diagnostics.Append(diags...)
 
@@ -1012,7 +1010,7 @@ func (it *HTTPRequestResource) ModifyPlan(
 
 	if adopt != nil {
 		warnAboutPendingAdoption(adopt, &resp.Diagnostics)
-		planCapturedResponse(stateModel, &planModel)
+		planKeptResponse(stateModel, &planModel)
 		resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
 
 		return
@@ -1034,10 +1032,39 @@ func (it *HTTPRequestResource) ModifyPlan(
 		planModel.DeleteResolvedPath = types.StringUnknown()
 		markCapturedResponseUnknown(&planModel)
 	} else {
-		planCapturedResponse(stateModel, &planModel)
+		planKeptResponse(stateModel, &planModel)
 	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
+}
+
+// planKeptResponse plans the computed attributes of an update that keeps the captured response.
+//
+// The response moves to the pair the flag selects, and `import_id` becomes unknown when an argument
+// it encodes changes, so that Update renders it again rather than keep describing the arguments as
+// they were. When none of them changes it is kept exactly as stored, so a plan never proposes a
+// change to it on its own.
+func planKeptResponse(state HTTPRequestResourceModel, plan *HTTPRequestResourceModel) {
+	planCapturedResponse(state, plan)
+
+	if importIDArgumentsChanged(*plan, state) {
+		plan.ImportID = types.StringUnknown()
+	}
+}
+
+// settleKeptResponse is the apply-time half of planKeptResponse. Every argument is known by now,
+// so whatever the plan left unknown can be worked out; whatever it planned is reproduced exactly.
+func settleKeptResponse(
+	ctx context.Context,
+	state HTTPRequestResourceModel,
+	plan *HTTPRequestResourceModel,
+	diagnostics *diag.Diagnostics,
+) {
+	carryCapturedResponse(state, plan)
+
+	if plan.ImportID.IsUnknown() {
+		plan.ImportID = buildImportID(ctx, *plan, diagnostics)
+	}
 }
 
 // capturedResponse returns the captured response body and its parsed map from the pair that the
