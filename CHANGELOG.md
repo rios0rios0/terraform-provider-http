@@ -23,6 +23,16 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-10-16
+
+### Added
+
+- added `is_response_body_sensitive` to `http_request`, which captures the response into the new sensitive `sensitive_response_body` and `sensitive_response_body_json` attributes so plans stop printing a secret the endpoint returns; toggling it moves the captured response without re-sending the request
+
+### Fixed
+
+- fixed `import_id` keeping the arguments a resource was created with after an argument that does not re-send the request changed (`is_response_body_sensitive`, `tolerated_status_codes`, `ignore_changes`, `request_timeout_ms`, `retry`, `is_refresh_enabled`, `refresh_path`), which made a re-import from it bring the old arguments back
+
 ## [3.7.9] - 2026-10-14
 
 ### Changed

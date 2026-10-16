@@ -1,3 +1,0 @@
-kind: 'Added'
-body: 'added `is_response_body_sensitive` to `http_request`, which captures the response into the new sensitive `sensitive_response_body` and `sensitive_response_body_json` attributes so plans stop printing a secret the endpoint returns; toggling it moves the captured response without re-sending the request'
-time: '2026-10-16T14:47:54.47131008Z'
