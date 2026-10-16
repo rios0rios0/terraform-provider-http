@@ -107,6 +107,7 @@ resource "http_request" "test_request" {
 - Import adoption: an identifier that omits arguments records them in the `import_adopt` private-state key, and the conditional `RequiresReplaceIf` modifiers in `internal/provider/import_adopt.go` suppress replacement for exactly those attributes until the first apply settles them from configuration without issuing a request. This is what keeps an import from destroying and recreating the resource
 - `import_id`, a computed attribute holding the identifier that re-imports the resource. `basic_auth` is deliberately never encoded into it
 - Opt-in drift detection via `is_refresh_enabled` and `refresh_path`; `Read` is a no-op unless it is enabled
+- Opt-in sensitive capture via `is_response_body_sensitive`: the captured response sits in exactly one of two pairs, `response_body`/`response_body_json` or the always-`Sensitive` `sensitive_response_body`/`sensitive_response_body_json`, and the flag picks which. Read the body back with `capturedResponse` and store it with `placeCapturedResponse`; toggling the flag moves it in `ModifyPlan`/`Update` without re-sending the request
 
 ### Version and Configuration
 - Version is auto-detected from the latest git tag via `ldflags` at build time (defaults to `dev` when no tag is present). See `VERSION` in `Makefile`.

@@ -56,6 +56,9 @@ type HTTPRequestResourceModelNative struct {
 	IsRefreshEnabled *bool  `json:"is_refresh_enabled,omitempty"`
 	RefreshPath      string `json:"refresh_path,omitempty"`
 
+	// sensitivity control
+	IsResponseBodySensitive *bool `json:"is_response_body_sensitive,omitempty"`
+
 	// state
 	ID               string            `json:"id,omitempty"`
 	ResponseCode     *int32            `json:"response_code,omitempty"`
@@ -521,6 +524,8 @@ func buildImportID(
 		IsRefreshEnabled:     boolValueToPtr(model.IsRefreshEnabled),
 		RefreshPath:          model.RefreshPath.ValueString(),
 		ImportReadPath:       importReadPathForIdentifier(model),
+
+		IsResponseBodySensitive: boolValueToPtr(model.IsResponseBodySensitive),
 	}
 
 	if diagnostics.HasError() {
@@ -542,6 +547,32 @@ func buildImportID(
 	)
 }
 
+// importIDArgumentsChanged reports whether an argument buildImportID encodes differs between the
+// plan and the prior state, counting an argument the plan does not know yet as a change.
+//
+// Most of these arguments change without re-sending the request, which is the only other time
+// `import_id` is rendered, so without this check the identifier would keep describing the
+// arguments as they were at creation -- and a re-import from it would bring those old arguments
+// back. It must name exactly the arguments buildImportID reads.
+func importIDArgumentsChanged(plan, state HTTPRequestResourceModel) bool {
+	return !plan.Method.Equal(state.Method) ||
+		!plan.Path.Equal(state.Path) ||
+		!plan.Headers.Equal(state.Headers) ||
+		!plan.RequestBody.Equal(state.RequestBody) ||
+		!plan.IsResponseBodyJSON.Equal(state.IsResponseBodyJSON) ||
+		!plan.ResponseBodyIDFilter.Equal(state.ResponseBodyIDFilter) ||
+		!plan.QueryParameters.Equal(state.QueryParameters) ||
+		!plan.ToleratedStatusCodes.Equal(state.ToleratedStatusCodes) ||
+		!plan.IgnoreChanges.Equal(state.IgnoreChanges) ||
+		!plan.BaseURL.Equal(state.BaseURL) ||
+		!plan.IgnoreTLS.Equal(state.IgnoreTLS) ||
+		!plan.RequestTimeoutMs.Equal(state.RequestTimeoutMs) ||
+		!plan.Retry.Equal(state.Retry) ||
+		!plan.IsRefreshEnabled.Equal(state.IsRefreshEnabled) ||
+		!plan.RefreshPath.Equal(state.RefreshPath) ||
+		!plan.IsResponseBodySensitive.Equal(state.IsResponseBodySensitive)
+}
+
 // importReadPathForIdentifier returns the path a re-import should read to recapture the response,
 // or an empty string when there is none to offer.
 //
@@ -558,9 +589,11 @@ func importReadPathForIdentifier(model HTTPRequestResourceModel) string {
 	// a read path still succeeds with a warning explaining how to supply one.
 	var ignored diag.Diagnostics
 
+	body, _ := capturedResponse(model)
+
 	resolved, ok := resolveDeletePathTokens(
 		model.RefreshPath.ValueString(),
-		model.ResponseBody.ValueString(),
+		body.ValueString(),
 		&ignored,
 	)
 	if !ok {
@@ -699,6 +732,12 @@ func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestRe
 		IsRefreshEnabled:     boolPtrToValue(nativeModel.IsRefreshEnabled),
 		ToleratedStatusCodes: types.SetNull(types.Int32Type),
 		IgnoreChanges:        types.SetNull(types.StringType),
+
+		// A payload's `response_body` and `response_body_json` are decoded into the plain pair
+		// whatever this flag says; ImportState moves them once the response is settled.
+		IsResponseBodySensitive:   boolPtrToValue(nativeModel.IsResponseBodySensitive),
+		SensitiveResponseBody:     types.StringNull(),
+		SensitiveResponseBodyJSON: types.MapNull(types.StringType),
 	}
 
 	return model

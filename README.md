@@ -137,6 +137,37 @@ A refresh whose response is neither successful nor listed in `tolerated_status_c
 resource from state, so it is planned for creation again rather than left pointing at something
 that no longer exists.
 
+### Sensitive responses
+
+An endpoint that returns a credential -- a token exchange, an API key renewal -- puts that secret in
+`response_body`, and every plan that replaces or updates the resource prints its prior value. Setting
+`is_response_body_sensitive = true` captures the response into `sensitive_response_body` and
+`sensitive_response_body_json` instead, which Terraform redacts, and leaves `response_body` and
+`response_body_json` null:
+
+```hcl
+resource "http_request" "api_key" {
+  method = "POST"
+  path   = "/users/7/api-keys"
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+
+  is_response_body_sensitive = true
+}
+
+output "api_key" {
+  value     = http_request.api_key.sensitive_response_body_json["key"]
+  sensitive = true
+}
+```
+
+Changing the flag moves the captured response between the two pairs without re-sending the request,
+so turning it on for an existing resource does not mint a new secret; that one plan still shows the
+old body on its way out of `response_body`. `response_body_id` and `delete_resolved_path` stay plain,
+the response is still written to state like every other attribute, and a response rejected for its
+status code is not captured at all, so its body still appears in the error.
+
 ### Timeouts and retries
 
 Both the provider and the `http_request` resource accept a `request_timeout_ms` argument and a

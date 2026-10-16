@@ -125,6 +125,18 @@ func (b *ResourceTFBuilder) WithRefreshPath(refreshPath string) *ResourceTFBuild
 	return b
 }
 
+func (b *ResourceTFBuilder) WithIsResponseBodySensitive(isResponseBodySensitive bool) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("is_response_body_sensitive = %t\n", isResponseBodySensitive)
+	return b
+}
+
+// WithIsResponseBodySensitiveExpression sets the flag to an HCL expression, such as a reference
+// whose value is unknown until apply.
+func (b *ResourceTFBuilder) WithIsResponseBodySensitiveExpression(expression string) *ResourceTFBuilder {
+	b.config += fmt.Sprintf("is_response_body_sensitive = %s\n", expression)
+	return b
+}
+
 func (b *ResourceTFBuilder) WithToleratedStatusCodes(codes []int) *ResourceTFBuilder {
 	if len(codes) == 0 {
 		return b
