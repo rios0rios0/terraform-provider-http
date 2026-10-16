@@ -244,3 +244,25 @@ output "watched_import_id" {
   description = "Run: terraform import http_request.watched \"$(terraform output -raw watched_import_id)\""
   value       = http_request.watched.import_id
 }
+
+# 13) Keep a secret the endpoint returns out of plan output
+# `is_response_body_sensitive` captures the response into `sensitive_response_body` and
+# `sensitive_response_body_json`, which Terraform redacts, and leaves `response_body` and
+# `response_body_json` null. Without it, a plan that replaces this resource prints the old key,
+# because a plan shows the prior value of every attribute that is not sensitive. Turning it on
+# for an existing resource moves the captured key without minting a new one; that one plan
+# still shows the old body on its way out of `response_body`.
+resource "http_request" "api_key" {
+  method = "POST"
+  path   = "/users/7/api-keys"
+
+  is_response_body_json   = true
+  response_body_id_filter = "$.id"
+
+  is_response_body_sensitive = true
+}
+
+output "api_key" {
+  value     = http_request.api_key.sensitive_response_body_json["key"]
+  sensitive = true
+}

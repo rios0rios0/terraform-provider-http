@@ -56,6 +56,9 @@ type HTTPRequestResourceModelNative struct {
 	IsRefreshEnabled *bool  `json:"is_refresh_enabled,omitempty"`
 	RefreshPath      string `json:"refresh_path,omitempty"`
 
+	// sensitivity control
+	IsResponseBodySensitive *bool `json:"is_response_body_sensitive,omitempty"`
+
 	// state
 	ID               string            `json:"id,omitempty"`
 	ResponseCode     *int32            `json:"response_code,omitempty"`
@@ -521,6 +524,8 @@ func buildImportID(
 		IsRefreshEnabled:     boolValueToPtr(model.IsRefreshEnabled),
 		RefreshPath:          model.RefreshPath.ValueString(),
 		ImportReadPath:       importReadPathForIdentifier(model),
+
+		IsResponseBodySensitive: boolValueToPtr(model.IsResponseBodySensitive),
 	}
 
 	if diagnostics.HasError() {
@@ -558,9 +563,11 @@ func importReadPathForIdentifier(model HTTPRequestResourceModel) string {
 	// a read path still succeeds with a warning explaining how to supply one.
 	var ignored diag.Diagnostics
 
+	body, _ := capturedResponse(model)
+
 	resolved, ok := resolveDeletePathTokens(
 		model.RefreshPath.ValueString(),
-		model.ResponseBody.ValueString(),
+		body.ValueString(),
 		&ignored,
 	)
 	if !ok {
@@ -699,6 +706,12 @@ func createBaseModel(nativeModel *HTTPRequestResourceModelNative) *HTTPRequestRe
 		IsRefreshEnabled:     boolPtrToValue(nativeModel.IsRefreshEnabled),
 		ToleratedStatusCodes: types.SetNull(types.Int32Type),
 		IgnoreChanges:        types.SetNull(types.StringType),
+
+		// A payload's `response_body` and `response_body_json` are decoded into the plain pair
+		// whatever this flag says; ImportState moves them once the response is settled.
+		IsResponseBodySensitive:   boolPtrToValue(nativeModel.IsResponseBodySensitive),
+		SensitiveResponseBody:     types.StringNull(),
+		SensitiveResponseBodyJSON: types.MapNull(types.StringType),
 	}
 
 	return model

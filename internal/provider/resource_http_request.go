@@ -75,6 +75,10 @@ const (
 	attrResponseBody         = "response_body"
 	attrResponseBodyID       = "response_body_id"
 	attrResponseBodyJSON     = "response_body_json"
+
+	attrIsResponseBodySensitive   = "is_response_body_sensitive"
+	attrSensitiveResponseBody     = "sensitive_response_body"
+	attrSensitiveResponseBodyJSON = "sensitive_response_body_json"
 )
 
 // Schema versions of the http_request resource. Version 2 is shape-identical to version 1; the
@@ -133,6 +137,9 @@ type HTTPRequestResourceModel struct {
 	IsRefreshEnabled types.Bool   `tfsdk:"is_refresh_enabled"`
 	RefreshPath      types.String `tfsdk:"refresh_path"`
 
+	// sensitivity control
+	IsResponseBodySensitive types.Bool `tfsdk:"is_response_body_sensitive"`
+
 	// state
 	ID               types.String `tfsdk:"id"`
 	ImportID         types.String `tfsdk:"import_id"`
@@ -140,6 +147,10 @@ type HTTPRequestResourceModel struct {
 	ResponseBody     types.String `tfsdk:"response_body"`
 	ResponseBodyID   types.String `tfsdk:"response_body_id"`
 	ResponseBodyJSON types.Map    `tfsdk:"response_body_json"`
+
+	// The captured response when `is_response_body_sensitive` is true; see placeCapturedResponse.
+	SensitiveResponseBody     types.String `tfsdk:"sensitive_response_body"`
+	SensitiveResponseBodyJSON types.Map    `tfsdk:"sensitive_response_body_json"`
 }
 
 // Default retry delays, matching the upstream hashicorp/http provider behavior.
@@ -205,6 +216,7 @@ func GetHTTPRequestResourceSchema() schema.Schema {
 	addRefreshControlAttributes(attrs)
 	addStateAttributes(attrs)
 	addImportHelperAttributes(attrs)
+	addSensitiveResponseAttributes(attrs)
 
 	return schema.Schema{
 		Version: schemaVersionV3,
@@ -344,8 +356,9 @@ func addRefreshControlAttributes(attrs map[string]schema.Attribute) {
 			"creation again. Defaults to false, which keeps the response captured at create time.")
 	attrs[attrRefreshPath] = helpers.StringAttributeNoReplace(false,
 		"Path to call when refreshing. Defaults to `path`. Supports the same inline JSONPath tokens "+
-			"as `delete_path` (e.g. \"/posts/$.id\"), evaluated against the captured `response_body`, "+
-			"which is what lets a resource created with POST refresh the object it created.")
+			"as `delete_path` (e.g. \"/posts/$.id\"), evaluated against the captured response body "+
+			"(`response_body`, or `sensitive_response_body`), which is what lets a resource created with "+
+			"POST refresh the object it created.")
 }
 
 func addDeleteControlAttributes(attrs map[string]schema.Attribute) {
@@ -356,7 +369,8 @@ func addDeleteControlAttributes(attrs map[string]schema.Attribute) {
 		"HTTP method to use during deletion (e.g., DELETE, POST). Defaults to DELETE.")
 	attrs[attrDeletePath] = helpers.StringAttributeWriteOnly(false,
 		"Path to call during deletion. Supports inline JSONPath tokens like \"/posts/$.data.id\" "+
-			"evaluated against the `response_body` from create.")
+			"evaluated against the response body captured at create (`response_body`, or "+
+			"`sensitive_response_body`).")
 	attrs[attrDeleteHeaders] = helpers.MapAttributeWriteOnly(false, types.StringType,
 		"Headers to send only during deletion.")
 	attrs[attrDeleteRequestBody] = helpers.StringAttributeWriteOnly(false,
@@ -373,13 +387,15 @@ func addStateAttributes(attrs map[string]schema.Attribute) {
 		"The HTTP status code returned by the server in response to the request " +
 			"(e.g., 200 for success, 404 for not found).")
 	attrs[attrResponseBody] = helpers.ComputedStringAttribute(
-		"The raw body content returned by the server in response to the request.")
+		"The raw body content returned by the server in response to the request. " +
+			"Null when `is_response_body_sensitive` is true; read `sensitive_response_body` instead.")
 	attrs[attrResponseBodyID] = helpers.ComputedStringAttribute(
 		"The extracted ID from the JSON response body, based on the provided " +
 			"`response_body_id_filter`. This is only populated if `is_response_body_json` is true.")
 	attrs[attrResponseBodyJSON] = helpers.ComputedMapAttribute(types.StringType,
 		"The response body parsed as a Terraform map object. Nested items can be accessed "+
-			"using dot notation (e.g., \"response_body_json[\"nested.item.value\"]\").")
+			"using dot notation (e.g., \"response_body_json[\"nested.item.value\"]\"). "+
+			"Null when `is_response_body_sensitive` is true; read `sensitive_response_body_json` instead.")
 }
 
 // addImportHelperAttributes adds `import_id`, the ready-made identifier for re-importing this
@@ -395,6 +411,31 @@ func addImportHelperAttributes(attrs map[string]schema.Attribute) {
 			"so it is safe to paste into a shell or a CI log and it does not duplicate the response " +
 			"body into a second copy in state; a re-import captures a current response instead. " +
 			"Capture it with an `output` block so it remains available if the state is ever lost.")
+}
+
+// addSensitiveResponseAttributes adds the opt-in that keeps a secret-bearing response out of plan
+// output.
+//
+// Terraform decides sensitivity per attribute, in the schema, so it cannot follow a configuration
+// value. Marking `response_body` itself sensitive would break every configuration that outputs it
+// without `sensitive = true`, so the response gets a second pair of attributes that are always
+// sensitive, and the flag decides which pair holds it. See placeCapturedResponse.
+func addSensitiveResponseAttributes(attrs map[string]schema.Attribute) {
+	attrs[attrIsResponseBodySensitive] = helpers.BoolAttributeNoReplace(false,
+		"Treats the captured response as a secret. When true, the response body and its parsed map "+
+			"are captured into `sensitive_response_body` and `sensitive_response_body_json`, which "+
+			"Terraform redacts from plan output, and `response_body` and `response_body_json` stay "+
+			"null. Changing it moves the captured response between the two pairs without re-sending "+
+			"the request. `response_body_id` and `delete_resolved_path` remain plain, so point neither "+
+			"`response_body_id_filter` nor a `delete_path` token at a secret. Like every attribute, "+
+			"the response is still written to state, and a response rejected for its status code is "+
+			"not captured at all, so its body still appears in the error. Defaults to false.")
+	attrs[attrSensitiveResponseBody] = helpers.ComputedSensitiveStringAttribute(
+		"The raw body content returned by the server, when `is_response_body_sensitive` is true. " +
+			"It holds what `response_body` would otherwise hold, redacted from plan output.")
+	attrs[attrSensitiveResponseBodyJSON] = helpers.ComputedSensitiveMapAttribute(types.StringType,
+		"The response body parsed as a Terraform map object, when `is_response_body_sensitive` is "+
+			"true. It holds what `response_body_json` would otherwise hold, redacted from plan output.")
 }
 
 func (it *HTTPRequestResource) Metadata(
@@ -798,9 +839,11 @@ func resolveRefreshPath(
 		return model.Path.ValueString(), true
 	}
 
+	body, _ := capturedResponse(model)
+
 	return resolveDeletePathTokens(
 		model.RefreshPath.ValueString(),
-		model.ResponseBody.ValueString(),
+		body.ValueString(),
 		diagnostics,
 	)
 }
@@ -817,6 +860,11 @@ func (it *HTTPRequestResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Both paths below that keep the captured response write the plan through, so the response
+	// has to sit where the flag puts it. ModifyPlan already placed it when the flag was known;
+	// placing it again from state is a no-op then, and settles a flag that was unknown until now.
+	carryCapturedResponse(stateModel, &planModel)
 
 	// An adoption left over from an import is settled first, and without touching the remote
 	// resource. The state came from an import identifier that did not spell every argument out,
@@ -893,9 +941,10 @@ func (it *HTTPRequestResource) adoptConfiguration(
 
 // RequestAttributesChanged reports whether any attribute that defines the outgoing HTTP
 // request differs between the plan and the prior state. Response-interpretation attributes
-// (tolerated_status_codes, response_body_id_filter, is_response_body_json), ignore_changes,
-// the computed response attributes, and the write-only destroy controls are intentionally
-// excluded -- changing any of them does not change the request that was sent.
+// (tolerated_status_codes, response_body_id_filter, is_response_body_json,
+// is_response_body_sensitive), ignore_changes, the computed response attributes, and the
+// write-only destroy controls are intentionally excluded -- changing any of them does not
+// change the request that was sent.
 func RequestAttributesChanged(plan, state HTTPRequestResourceModel) bool {
 	return !plan.Method.Equal(state.Method) ||
 		!plan.Path.Equal(state.Path) ||
@@ -922,6 +971,8 @@ func (it *HTTPRequestResource) ModifyPlan(
 	it.warnOnShadowedDeleteHeaders(ctx, req.Config, &resp.Diagnostics)
 
 	if req.State.Raw.IsNull() || !req.State.Raw.IsKnown() {
+		planCreatedResponse(ctx, req.Plan, resp)
+
 		return
 	}
 
@@ -961,6 +1012,7 @@ func (it *HTTPRequestResource) ModifyPlan(
 
 	if adopt != nil {
 		warnAboutPendingAdoption(adopt, &resp.Diagnostics)
+		planCapturedResponse(stateModel, &planModel)
 		resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
 
 		return
@@ -978,13 +1030,105 @@ func (it *HTTPRequestResource) ModifyPlan(
 		planModel.ID = types.StringUnknown()
 		planModel.ImportID = types.StringUnknown()
 		planModel.ResponseCode = types.Int32Unknown()
-		planModel.ResponseBody = types.StringUnknown()
 		planModel.ResponseBodyID = types.StringUnknown()
-		planModel.ResponseBodyJSON = types.MapUnknown(types.StringType)
 		planModel.DeleteResolvedPath = types.StringUnknown()
+		markCapturedResponseUnknown(&planModel)
+	} else {
+		planCapturedResponse(stateModel, &planModel)
 	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
+}
+
+// capturedResponse returns the captured response body and its parsed map from the pair that the
+// model's own `is_response_body_sensitive` selects.
+//
+// Every state this provider writes keeps the response in the pair its flag selects, so this is how
+// anything that needs the body back -- a refresh or delete path token, the import identifier --
+// reads it, whichever pair that is.
+func capturedResponse(model HTTPRequestResourceModel) (types.String, types.Map) {
+	if isBoolTrue(model.IsResponseBodySensitive) {
+		return model.SensitiveResponseBody, model.SensitiveResponseBodyJSON
+	}
+
+	return model.ResponseBody, model.ResponseBodyJSON
+}
+
+// placeCapturedResponse stores a captured response body and its parsed map in the pair that
+// `is_response_body_sensitive` selects, and nulls the other pair.
+//
+// Nulling the other pair is the point of the flag: a copy left in `response_body` would be printed
+// by the very next plan that replaces the resource, which shows the prior value of every attribute
+// that is not sensitive.
+func placeCapturedResponse(model *HTTPRequestResourceModel, body types.String, bodyJSON types.Map) {
+	if isBoolTrue(model.IsResponseBodySensitive) {
+		model.SensitiveResponseBody = body
+		model.SensitiveResponseBodyJSON = bodyJSON
+		model.ResponseBody = types.StringNull()
+		model.ResponseBodyJSON = types.MapNull(types.StringType)
+
+		return
+	}
+
+	model.ResponseBody = body
+	model.ResponseBodyJSON = bodyJSON
+	model.SensitiveResponseBody = types.StringNull()
+	model.SensitiveResponseBodyJSON = types.MapNull(types.StringType)
+}
+
+// carryCapturedResponse moves the response captured in state into the pair the plan selects.
+func carryCapturedResponse(state HTTPRequestResourceModel, plan *HTTPRequestResourceModel) {
+	body, bodyJSON := capturedResponse(state)
+	placeCapturedResponse(plan, body, bodyJSON)
+}
+
+// planCapturedResponse plans where the captured response will sit when the request is not re-sent.
+//
+// Toggling `is_response_body_sensitive` never re-sends the request: for an endpoint that mints a
+// credential, such as an API key renewal, re-sending would rotate the very secret the flag is
+// meant to protect. The captured response moves between the two pairs instead. A flag that stays
+// unknown until apply leaves both pairs unknown, because which of them will hold the response is
+// not decided yet; Update settles them.
+func planCapturedResponse(state HTTPRequestResourceModel, plan *HTTPRequestResourceModel) {
+	if plan.IsResponseBodySensitive.IsUnknown() {
+		markCapturedResponseUnknown(plan)
+
+		return
+	}
+
+	carryCapturedResponse(state, plan)
+}
+
+// planCreatedResponse plans only the pair of captured-response attributes a new resource will fill.
+//
+// A replacement plans its create half through here too, with no prior state. Without it every
+// create would list the pair the flag leaves null as "(known after apply)", which would put the
+// sensitive pair into the plan of every resource that never asked for it.
+func planCreatedResponse(ctx context.Context, plan tfsdk.Plan, resp *resource.ModifyPlanResponse) {
+	var planModel HTTPRequestResourceModel
+
+	resp.Diagnostics.Append(plan.Get(ctx, &planModel)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	markCapturedResponseUnknown(&planModel)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &planModel)...)
+}
+
+// markCapturedResponseUnknown marks unknown the pair that will hold the response and nulls the
+// other one, or marks both unknown while the flag that decides between them is itself unknown.
+func markCapturedResponseUnknown(model *HTTPRequestResourceModel) {
+	if model.IsResponseBodySensitive.IsUnknown() {
+		model.ResponseBody = types.StringUnknown()
+		model.ResponseBodyJSON = types.MapUnknown(types.StringType)
+		model.SensitiveResponseBody = types.StringUnknown()
+		model.SensitiveResponseBodyJSON = types.MapUnknown(types.StringType)
+
+		return
+	}
+
+	placeCapturedResponse(model, types.StringUnknown(), types.MapUnknown(types.StringType))
 }
 
 // warnAboutPendingAdoption tells the practitioner which arguments the import identifier left out
@@ -1058,6 +1202,10 @@ func populateResponseState(
 		model.DeleteResolvedPath = types.StringNull()
 	}
 
+	// The response is worked out in the plain pair above and only then moved, which also replaces
+	// whatever an earlier capture left in the sensitive pair.
+	placeCapturedResponse(model, model.ResponseBody, model.ResponseBodyJSON)
+
 	if len(model.ID.ValueString()) == 0 {
 		model.ID = types.StringValue(uuid.NewString())
 	}
@@ -1091,7 +1239,8 @@ func resolveDeleteTargetPath(
 	if isNonEmptyString(m.DeleteResolvedPath) {
 		return m.DeleteResolvedPath.ValueString(), true
 	}
-	if m.ResponseBody.IsNull() || m.ResponseBody.ValueString() == "" {
+	body, _ := capturedResponse(m)
+	if body.IsNull() || body.ValueString() == "" {
 		diagnostics.AddError(
 			"Missing response_body to resolve delete_path",
 			"`delete_path` contains JSONPath tokens but `response_body` is empty; cannot resolve.",
@@ -1101,7 +1250,7 @@ func resolveDeleteTargetPath(
 
 	resolved, ok := resolveDeletePathTokens(
 		m.DeletePath.ValueString(),
-		m.ResponseBody.ValueString(),
+		body.ValueString(),
 		diagnostics,
 	)
 	if !ok {
@@ -1348,7 +1497,9 @@ func (it *HTTPRequestResource) captureImportedResponse(
 	diagnostics *diag.Diagnostics,
 ) {
 	// A payload that carried a response is taken at its word; it is replayed through the same
-	// code path as a live one so the derived attributes are computed identically.
+	// code path as a live one so the derived attributes are computed identically. The payload is
+	// always decoded into the plain pair, whatever `is_response_body_sensitive` says, and
+	// populateResponseState moves it from there.
 	if isNonEmptyString(model.ResponseBody) {
 		populateResponseState(ctx, model, &httpExchange{
 			statusCode: int(model.ResponseCode.ValueInt32()),
@@ -1361,6 +1512,9 @@ func (it *HTTPRequestResource) captureImportedResponse(
 	readPath, ok := importReadPath(*model, native)
 	if !ok {
 		warnAboutUncapturedImportResponse(model.Method.ValueString(), diagnostics)
+
+		// Nothing was captured, but a payload may still have supplied a `response_body_json`.
+		placeCapturedResponse(model, model.ResponseBody, model.ResponseBodyJSON)
 
 		return
 	}
@@ -1513,6 +1667,11 @@ func upgradeStateFromV0(
 		IsRefreshEnabled: types.BoolNull(),
 		RefreshPath:      types.StringNull(),
 		ImportID:         types.StringNull(),
+
+		// Added to schema v3 later, without a version bump; see toCurrent.
+		IsResponseBodySensitive:   types.BoolNull(),
+		SensitiveResponseBody:     types.StringNull(),
+		SensitiveResponseBodyJSON: types.MapNull(types.StringType),
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, newModel)...)
@@ -1703,6 +1862,12 @@ type httpRequestResourceModelPreV3 struct {
 // toCurrent lifts a pre-version-3 state into the current model, carrying the attributes version 3
 // introduced as TYPED nulls. An untyped zero value would give the very next plan a
 // "Value Conversion Error ... MISSING TYPE", which is the failure the version 0 upgrader documents.
+//
+// The sensitive-response attributes joined version 3 later without a version bump. A state that
+// is already at version 3 never reaches an upgrader -- the framework decodes it against the
+// current schema and fills every attribute the stored JSON lacks with a typed null -- so only the
+// upgraders from older versions have to supply them, and a provider without them can still read
+// the state back, since that same decoding skips attributes the schema does not know.
 func (m httpRequestResourceModelPreV3) toCurrent() HTTPRequestResourceModel {
 	return HTTPRequestResourceModel{
 		Method:               m.Method,
@@ -1734,6 +1899,10 @@ func (m httpRequestResourceModelPreV3) toCurrent() HTTPRequestResourceModel {
 		IsRefreshEnabled: types.BoolNull(),
 		RefreshPath:      types.StringNull(),
 		ImportID:         types.StringNull(),
+
+		IsResponseBodySensitive:   types.BoolNull(),
+		SensitiveResponseBody:     types.StringNull(),
+		SensitiveResponseBodyJSON: types.MapNull(types.StringType),
 	}
 }
 

@@ -175,6 +175,14 @@ func ComputedStringAttribute(description string) schema.StringAttribute {
 	}
 }
 
+// ComputedSensitiveStringAttribute is ComputedStringAttribute for a value Terraform must redact
+// from plan output.
+func ComputedSensitiveStringAttribute(description string) schema.StringAttribute {
+	attribute := ComputedStringAttribute(description)
+	attribute.Sensitive = true
+	return attribute
+}
+
 func ComputedInt32Attribute(description string) schema.Int32Attribute {
 	return schema.Int32Attribute{
 		Computed:            true,
@@ -196,4 +204,12 @@ func ComputedMapAttribute(elementType attr.Type, description string) schema.MapA
 			mapplanmodifier.UseStateForUnknown(),
 		},
 	}
+}
+
+// ComputedSensitiveMapAttribute is ComputedMapAttribute for a value Terraform must redact from plan
+// output.
+func ComputedSensitiveMapAttribute(elementType attr.Type, description string) schema.MapAttribute {
+	attribute := ComputedMapAttribute(elementType, description)
+	attribute.Sensitive = true
+	return attribute
 }
