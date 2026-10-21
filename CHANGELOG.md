@@ -23,6 +23,17 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.1] - 2026-10-21
+
+### Changed
+
+- changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261012220534-4341edf3f941` to `v0.0.0-20261019180522-ce908d29299b`
+- changed the Go version from `1.27.2` to `1.27.3`
+
+### Fixed
+
+- fixed the acceptance tests failing the whole CI run, and with it the release of a bump merge, whenever HashiCorp's checkpoint API answered one of the per-test-case Terraform CLI lookups with a `502` or a timeout: `TestMain` now resolves one CLI per test binary, retrying with backoff and falling back to `releases.hashicorp.com`, and shares it through `TF_ACC_TERRAFORM_PATH`
+
 ## [3.8.0] - 2026-10-16
 
 ### Added
