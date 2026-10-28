@@ -1,0 +1,26 @@
+# CodeQL false positives for THIS repository's own analysis (`.github/workflows/default.yaml`).
+#
+# The gate (`global/scripts/tools/codeql/gate.sh` in rios0rios0/pipelines) reads
+# `.codeql-false-positives` from the root of the repository being scanned, so this file applies
+# here and nowhere else.
+#
+# Format: each `primaryLocationLineHash` alone on its line, exactly as the gate prints it -- a
+# line is compared whole, so a trailing comment silences nothing. The hash covers the flagged
+# line and about the next hundred non-blank characters, so editing that code changes it and
+# brings the finding back for a fresh look: an entry vouches for the code as it was read, not for
+# whatever replaces it.
+#
+# ---------------------------------------------------------------------------------------------------
+# 2026-10-28 -- go/disabled-certificate-check against
+# `internal/domain/entities/internal_context.go:20`, the `InsecureSkipVerify: true` inside
+# `NewInternalContext`.
+#
+# Same finding SonarCloud already accepts as go:S4830/go:S5527 (see `sonar-project.properties`,
+# criteria e1/e2 for this exact file): `ignore_tls` is the only thing that builds this transport,
+# defaults to `false`, is never enabled implicitly, and every request that skips verification
+# logs a WARN entry (CLAUDE.md, "Key Conventions"). A user of this Terraform provider has to opt
+# in explicitly, per-resource or per-provider, to reach an endpoint with a self-signed
+# certificate -- skipping verification IS the feature, so the finding cannot be fixed without
+# removing it. The transport keeps `MinVersion: tls.VersionTLS13`, and the line already carries a
+# `//nolint:gosec` for golangci-lint's identical G402 finding; this is the CodeQL equivalent.
+18c805381547c379:1
