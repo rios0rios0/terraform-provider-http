@@ -1,3 +1,3 @@
 kind: 'Changed'
-body: 'changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261012220534-4341edf3f941` to `v0.0.0-20261019180522-ce908d29299b`'
+body: 'changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261012220534-4341edf3f941` to `v0.0.0-20261026165753-2ffab32bce7e`'
 time: '2026-10-20T09:16:03.182501474Z'
