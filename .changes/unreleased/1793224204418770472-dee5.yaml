@@ -1,0 +1,3 @@
+kind: 'Fixed'
+body: 'accepted the go/disabled-certificate-check CodeQL finding on the ignore_tls transport as a documented false positive, matching the existing SonarCloud go:S4830/go:S5527 acceptance'
+time: '2026-10-28T21:50:04.418698661Z'
