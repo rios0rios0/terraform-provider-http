@@ -20,7 +20,7 @@ The canonical engineering standards live in the
 repo-tailored index into that guide plus the rules that only apply here. Precedence, highest
 first:
 
-1. This repository's `.github/copilot-instructions.md`, `CLAUDE.md`, and `CONTRIBUTING.md` —
+1. This repository's `.github/copilot-instructions.md`, `AGENTS.md`, and `CONTRIBUTING.md` —
    they describe *this* codebase and its load-bearing invariants.
 2. The **rios0rios0/guide** wiki — the shared standard.
 3. General language idiom.
@@ -89,14 +89,13 @@ make all                  # lint + semgrep + gitleaks + test
 make lint && make test    # this Makefile has no `sast` target; use the per-tool ones
 make semgrep && make gitleaks
 go test ./internal/...
-terraform -chdir=examples/resources plan   # after a schema change
+make docs && git diff --exit-code docs/    # after a schema or example change
 ```
 
 ### Local quality gates
 
-`make lint`, `make test`, and the SAST targets (`make sast`, or the per-tool targets such as
-`make semgrep` / `make gitleaks` where this repository's Makefile defines those instead) are
-the gate. They import the shared targets from
+`make lint`, `make test`, `make semgrep`, and `make gitleaks` (all four: `make all`) are the
+gate. They import the shared targets from
 [rios0rios0/pipelines](https://github.com/rios0rios0/pipelines), which load the correct
 configuration before invoking each tool — so **never invoke the tool binaries directly**
 (`golangci-lint`, `pytest`, `eslint`, `semgrep`, `trivy`, `hadolint`, `gitleaks`). A change
@@ -140,9 +139,10 @@ See [Go Conventions](https://github.com/rios0rios0/guide/wiki/GoLang-Conventions
   Repository methods read `FindByX`, `FindAllByX`, `HasX`, `Save`, `SaveAll`, `DeleteByX`.
 - **Accept interfaces, return structs**, and keep interfaces small — a consumer that needs
   one method should not depend on a ten-method interface.
-- Logging uses Logrus imported as `logger`, with structured fields
-  (`logger.WithFields(...)`/`WithError(...)`). `fmt.Println`, `println`, and the standard
-  `log` package are not application logging.
+- Logging goes through `tflog` (`github.com/hashicorp/terraform-plugin-log`), the logger
+  Terraform collects from providers, with structured fields; this provider has no Logrus
+  dependency. `fmt.Println`, `println`, and the standard `log` package are not application
+  logging.
 - Errors are wrapped with context: `fmt.Errorf("…: %w", err)`. Never discard an error with
   `_` without a comment explaining why it cannot matter.
 - No `any` in exported signatures — use a constraint or a real interface. Every `//nolint`
@@ -168,7 +168,10 @@ and YAML blocks inside Markdown.
 See [Tests](https://github.com/rios0rios0/guide/wiki/Tests).
 
 - HTTP behaviour is proven against a real local test server (`httptest.NewServer`), never against a transport mock.
-- Acceptance tests under `test/infrastructure/` cover the resource lifecycle: create, read, update, delete, and import.
+- Acceptance tests live in `internal/provider/` behind `//go:build integration` (the
+  `*_integration_test.go` files and `resource_http_request_test.go`) and cover the resource
+  lifecycle: create, read, update, delete, and import. `test/infrastructure/builders/` holds
+  the config builders they use.
 
 ### Rules that hold for every test in this repository
 
@@ -211,7 +214,7 @@ hand.
 - Fragment bodies start with a lowercase verb in simple past tense, capitalise proper nouns
   (GitHub, Go, Docker), and wrap code identifiers and versions in backticks.
 - `README.md` is updated whenever usage, setup, configuration, or architecture changes;
-  `.github/copilot-instructions.md` and `CLAUDE.md` whenever the workflow, commands, or
+  `.github/copilot-instructions.md` and `AGENTS.md` whenever the workflow, commands, or
   structure changes. Documentation and code ship in one commit.
 
 ## Git Flow and pull-request hygiene
@@ -274,7 +277,7 @@ A review that raises noise gets ignored. Do not report these:
 ### Change-control checklist
 - [ ] Changelog entry present for every behavioural change
 - [ ] `README.md` updated if usage, setup, or architecture changed
-- [ ] `.github/copilot-instructions.md` and `CLAUDE.md` updated if the workflow, commands, or structure changed
+- [ ] `.github/copilot-instructions.md` and `AGENTS.md` updated if the workflow, commands, or structure changed
 - [ ] Commit messages follow `type(SCOPE): message` in simple past tense
 - [ ] Breaking changes flagged in the commit footer, the changelog, and the PR description
 
