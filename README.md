@@ -22,7 +22,7 @@ This provider supports specifying the URL, method, and headers, and it captures 
 
 ## Requirements
 
-- [Go](https://golang.org/doc/install) >= 1.26.5
+- [Go](https://golang.org/doc/install) >= 1.27.3 (the `go` directive in `go.mod`)
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.11 (write-only attributes); >= 1.12 to
   import with an `identity` block
 

@@ -5,22 +5,20 @@ Always reference these instructions first and fall back to search or bash comman
 ## Working Effectively
 
 ### Prerequisites and Setup
-- Install Go 1.27.1 (as specified in `go.mod`)
+- Install the Go version named by the `go` directive in `go.mod`
 - Install Terraform 1.11+ (required for WriteOnly attributes introduced in v3.0.0)
 - Install make for build automation
 
 ### Essential Build and Test Commands
-- `make build` -- compiles the provider binary. Takes <1 second. NEVER CANCEL.
+- `make build` -- compiles the provider binary. Takes <1 second.
 - `make install` -- builds and installs provider locally for testing. Takes ~1 second.
-- `make test` -- runs full test suite with coverage: the untagged unit tests first, then the `integration`-tagged acceptance tests, which drive a real Terraform binary and partly hit the network. Takes ~3 minutes. NEVER CANCEL. Set timeout to 10+ minutes.
-- `make docs` -- generates provider documentation. Takes ~2 seconds. NEVER CANCEL.
+- `make test` -- runs full test suite with coverage: the untagged unit tests first, then the `integration`-tagged acceptance tests, which drive a real Terraform binary and partly hit the network. Takes ~3 minutes; give it a timeout of 10+ minutes so it is not cut off.
+- `make docs` -- generates provider documentation. Takes ~2 seconds.
 - `docs/` is generated output: never edit it by hand. The provider page renders from `templates/index.md.tmpl` and the examples from `examples/`; put prose and comments there, then run `make docs` and commit the result
-- `make lint` -- runs comprehensive linting using golangci-lint. Takes ~1 minute. NEVER CANCEL.
+- `make lint` -- runs comprehensive linting using golangci-lint with the pipelines project's shared config. Takes ~1 minute.
 - `make lint-fix` -- runs linting and automatically fixes issues where possible.
 
 ### Linting and Code Quality
-- `make lint` -- runs comprehensive linting using golangci-lint from pipelines project. Takes ~1 minute. NEVER CANCEL.
-- `make lint-fix` -- runs linting and automatically fixes issues where possible.
 - `go fmt ./...` -- formats Go code
 - `go vet ./...` -- runs Go static analysis
 - Alternative: Install `golangci-lint`: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /tmp v1.62.2`
@@ -28,13 +26,13 @@ Always reference these instructions first and fall back to search or bash comman
 
 ### Manual Provider Testing
 - Always run `make install` before testing provider changes
-- Create test Terraform configuration in `/tmp/tf-test/main.tf`. The version must match the `VERSION` used by `make install` (auto-detected from the latest git tag, e.g. `3.0.5`):
+- Create test Terraform configuration in `/tmp/tf-test/main.tf`. The version must match the `VERSION` used by `make install` (auto-detected from the latest git tag; `git describe --tags --abbrev=0` prints it):
 ```hcl
 terraform {
   required_providers {
     http = {
       source = "hashicorp-local.com/rios0rios0/http"
-      version = "3.0.5" # must match the VERSION from `make install`
+      version = "X.Y.Z" # replace with the VERSION from `make install`
     }
   }
 }
@@ -71,7 +69,6 @@ resource "http_request" "test_request" {
 ### Code Quality Checks
 - Run `make lint` and `make lint-fix` to check and fix linting issues
 - Run `go fmt ./...` and `go vet ./...` before committing
-- **ALWAYS write a changelog fragment** with `chlog new --kind <Kind> --body '...'` when making changes, and commit it from `.changes/unreleased/`
 
 ## Key Codebase Navigation
 
@@ -90,6 +87,7 @@ resource "http_request" "test_request" {
 - `examples/` -- working example configurations for testing
 - `Makefile` -- build automation with all essential targets
 - `sonar-project.properties` -- SonarCloud settings; records the accepted `ignore_tls` transport findings (go:S4830 / go:S5527) so they are not "fixed" by removing the feature
+- `.codeql-false-positives` -- records the same accepted finding for CodeQL (go/disabled-certificate-check on `internal/domain/entities/internal_context.go`)
 - `tools/tools.go` -- tool dependencies (e.g. `tfplugindocs`)
 
 ### Important Provider Features
@@ -98,7 +96,7 @@ resource "http_request" "test_request" {
 - Basic authentication and TLS options (configurable at both provider and resource level). `ignore_tls` defaults to `false`, is never enabled implicitly, and logs a WARN entry whenever a request skips verification
 - Query parameters and request body support
 - State management with response storage
-- Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`, `delete_resolved_path`). Since v3.0.0 these are WriteOnly attributes (not persisted in state; stored in provider private state)
+- Delete operations with path resolution (`is_delete_enabled`, `delete_method`, `delete_path`, `delete_headers`, `delete_request_body`). Since v3.0.0 these are WriteOnly attributes (not persisted in state; stored in provider private state). The resolved path is reported in the computed, state-stored `delete_resolved_path`
 - `tolerated_status_codes` attribute to treat specific non-2xx HTTP status codes as successful
 - `ignore_changes` attribute to suppress diffs for specific resource attributes during updates
 - `request_timeout_ms` argument and a `retry` block (`attempts`, `min_delay_ms`, `max_delay_ms`) at both provider and resource level, mirroring the upstream `hashicorp/http` provider. The timeout bounds each attempt (0/unset = no timeout); retries cover connection errors and 5xx (except 501) with exponential backoff. Implemented in `getHTTPClient` via `github.com/hashicorp/go-retryablehttp`

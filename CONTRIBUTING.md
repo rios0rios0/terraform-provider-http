@@ -25,7 +25,8 @@ development practices, refer to the **[Development Guide](https://github.com/rio
    ```bash
    make lint
    make test
-   make sast
+   make semgrep
+   make gitleaks
    ```
 6. Regenerate documentation if schemas changed:
    ```bash
@@ -35,7 +36,7 @@ development practices, refer to the **[Development Guide](https://github.com/rio
    ```bash
    chlog new --kind Added --body 'added the thing that was not there before'
    ```
-8. Commit following the [commit conventions](https://github.com/rios0rios0/guide/wiki/Life-Cycle/Git-Flow)
+8. Commit following the [commit conventions](https://github.com/rios0rios0/guide/wiki/Git-Flow)
 9. Open a pull request against `main`
 
 ## Testing Locally
@@ -46,14 +47,15 @@ Install the provider to the local plugin directory and use it in a Terraform con
 make install
 ```
 
-Then reference the local provider in your `main.tf`:
+Then reference the local provider in your `main.tf`, with `version` set to the `VERSION` that
+`make install` used (`git describe --tags --abbrev=0` prints it):
 
 ```hcl
 terraform {
   required_providers {
     http = {
       source  = "hashicorp-local.com/rios0rios0/http"
-      version = "2.2.0"
+      version = "X.Y.Z"
     }
   }
 }
