@@ -1,0 +1,3 @@
+kind: 'Changed'
+body: 'changed the Go module `github.com/hashicorp/terraform-exec` from `v0.25.3` to `v0.26.0`'
+time: '2026-10-30T09:12:02.308824697Z'
