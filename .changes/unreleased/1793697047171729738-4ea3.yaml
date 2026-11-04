@@ -1,3 +1,0 @@
-kind: 'Changed'
-body: 'changed the Go module `github.com/hashicorp/terraform-registry-address` from `v0.5.0` to `v0.5.1`'
-time: '2026-11-03T09:10:47.171729738Z'

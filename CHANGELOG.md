@@ -23,6 +23,24 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.1] - 2026-11-04
+
+### Changed
+
+- changed the Go module `github.com/hashicorp/terraform-exec` from `v0.25.3` to `v0.26.0`
+- changed the Go module `github.com/hashicorp/terraform-registry-address` from `v0.5.0` to `v0.5.1`
+- changed the Go module `go.yaml.in/yaml/v3` from `v3.0.5` to `v3.0.6`
+- changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261012220534-4341edf3f941` to `v0.0.0-20261026165753-2ffab32bce7e`
+- changed the Go modules `github.com/ohler55/ojg` from `v1.28.7` to `v1.28.9`, `golang.org/x/net` from `v0.61.0` to `v0.62.0` and `google.golang.org/grpc` from `v1.84.0` to `v1.85.0`
+- changed the Go version from `1.27.2` to `1.27.3`
+- moved the agent instructions from `CLAUDE.md` to `AGENTS.md`, keeping a `CLAUDE.md` that imports it
+- refreshed `AGENTS.md`, `.github/copilot-instructions.md`, `.github/skills/code-review/SKILL.md`, `README.md` and `CONTRIBUTING.md`: pointed the Go version at `go.mod`, documented the CodeQL acceptance of the `ignore_tls` transport, corrected `delete_resolved_path` to a computed attribute, replaced the nonexistent `make sast` target, and fixed the review skill's stale `CLAUDE.md`, acceptance-test, Logrus and `examples/` references
+
+### Fixed
+
+- accepted the go/disabled-certificate-check CodeQL finding on the ignore_tls transport as a documented false positive, matching the existing SonarCloud go:S4830/go:S5527 acceptance
+- fixed the acceptance tests failing the whole CI run, and with it the release of a bump merge, whenever HashiCorp's checkpoint API answered one of the per-test-case Terraform CLI lookups with a `502` or a timeout: `TestMain` now resolves one CLI per test binary, retrying with backoff and falling back to `releases.hashicorp.com`, and shares it through `TF_ACC_TERRAFORM_PATH`
+
 ## [3.8.0] - 2026-10-16
 
 ### Added
