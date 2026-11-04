@@ -1,3 +1,0 @@
-kind: 'Fixed'
-body: 'fixed the acceptance tests failing the whole CI run, and with it the release of a bump merge, whenever HashiCorp''s checkpoint API answered one of the per-test-case Terraform CLI lookups with a `502` or a timeout: `TestMain` now resolves one CLI per test binary, retrying with backoff and falling back to `releases.hashicorp.com`, and shares it through `TF_ACC_TERRAFORM_PATH`'
-time: '2026-10-16T15:33:35.084225868Z'
