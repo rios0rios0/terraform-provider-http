@@ -23,6 +23,14 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.2] - 2026-11-11
+
+### Changed
+
+- changed the Go module `github.com/zclconf/go-cty` from `v1.19.0` to `v1.20.0`
+- changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261026165753-2ffab32bce7e` to `v0.0.0-20261110000943-09e21b237f2c`
+- changed the Go modules `golang.org/x/mod` from `v0.42.0` to `v0.43.0`, `golang.org/x/sync` from `v0.24.0` to `v0.25.0`, `golang.org/x/sys` from `v0.49.0` to `v0.50.0` and `golang.org/x/text` from `v0.43.0` to `v0.44.0`
+
 ## [3.8.1] - 2026-11-04
 
 ### Changed
