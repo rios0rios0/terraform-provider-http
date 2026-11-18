@@ -23,6 +23,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.3] - 2026-11-18
+
+### Changed
+
+- changed the Go module `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261110000943-09e21b237f2c` to `v0.0.0-20261116203732-fd2c7689a808`
+
 ## [3.8.2] - 2026-11-16
 
 ### Changed
