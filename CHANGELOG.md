@@ -23,6 +23,12 @@ Exceptions are acceptable depending on the circumstances (critical bug fixes tha
 
 ## [Unreleased]
 
+## [3.8.4] - 2026-11-25
+
+### Changed
+
+- changed the Go modules `github.com/hashicorp/terraform-plugin-sdk/v2` from `v2.40.1` to `v2.41.1`, `golang.org/x/net` from `v0.62.0` to `v0.63.0`, `golang.org/x/tools` from `v0.52.0` to `v0.53.0` and `google.golang.org/genproto/googleapis/rpc` from `v0.0.0-20261116203732-fd2c7689a808` to `v0.0.0-20261123191846-1e707ab9fbc2`
+
 ## [3.8.3] - 2026-11-18
 
 ### Changed
